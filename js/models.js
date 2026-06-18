@@ -265,3 +265,4 @@ const Models = (() => {
 })();
 
 if (typeof window !== "undefined") window.Models = Models;
+if (typeof module !== "undefined" && module.exports) module.exports = Models;

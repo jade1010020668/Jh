@@ -86,3 +86,6 @@ if (typeof window !== "undefined") {
   window.GROUPS = GROUPS;
   window.HOST_TEAMS = HOST_TEAMS;
 }
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { TEAMS, GROUPS, HOST_TEAMS };
+}

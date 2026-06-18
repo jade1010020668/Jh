@@ -59,6 +59,23 @@ test_node.js        Pruebas del motor:  node test_node.js
 node test_node.js
 ```
 
+## 🤖 Rutina de avisos por WhatsApp (1 hora antes de cada partido)
+
+Además de la web, el repo incluye una **rutina automática** que te envía a
+WhatsApp el marcador probable **1 hora antes de cada partido**. Corre sola en
+**GitHub Actions** (no necesitas tu PC encendido) y usa **CallMeBot** (gratis).
+
+- Código: `bot/predict.js` · calendario editable: `bot/fixtures.json`
+- Cron: `.github/workflows/whatsapp-predictions.yml` (cada 15 min)
+- Guía de configuración completa: [`bot/README.md`](bot/README.md)
+
+Usa el **mismo motor** (`js/models.js`) que la web, así que la predicción de la
+app y la del WhatsApp coinciden. Prueba local sin enviar nada:
+
+```bash
+DRY_RUN=1 TEST_MODE=1 node bot/predict.js
+```
+
 ## La verdad honesta
 
 El mercado de apuestas ya es muy eficiente; batirlo de forma sostenida es
