@@ -115,8 +115,13 @@ npm run scoreboard # ¿acierta el modelo? Brier/RPS y % de acierto sobre resulta
 
 - **CI:** el workflow `.github/workflows/ci.yml` corre `test + validate + doctor + dry-run + scoreboard`
   en cada push/PR, así el verde significa algo de verdad.
-- **Calibración:** añade partidos jugados a `bot/results.json` (con su `actual`) y `npm run scoreboard`
-  te dice si el modelo va mejor que el azar (Brier < 0.667).
+- **Calibración honesta (backtest):** cada vez que el bot avisa un partido, **guarda su predicción**
+  (base y, si hay key, la de Opus) en `bot/results.json` *antes* de jugarse. Cuando rellenas el
+  resultado (`actual`), `npm run scoreboard` mide aciertos por jornada, analiza los empates
+  (esperados vs reales) y **compara base vs Opus** — sin trampa de saber el resultado de antemano.
+- **Aviso de empate:** el mensaje añade `⚖️ Empate muy probable` en partidos parejos
+  (regla en `bot/lib/insights.js`), donde el modelo —que reporta el resultado más probable— suele
+  quedarse corto con las X.
 - **Robustez en producción:** el envío reintenta (1s/2s/4s), si la rutina falla intenta **avisarte
   del fallo por WhatsApp**, y deja un resumen en el *Step Summary* del job de Actions.
 

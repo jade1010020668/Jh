@@ -45,15 +45,15 @@ jobs:
           TEST_MODE: ${{ (github.event_name == 'workflow_dispatch' && inputs.test) && '1' || '' }}
         run: node bot/predict.js
 
-      - name: Guardar estado (evitar avisos duplicados)
+      - name: Guardar estado (avisos enviados + predicciones para el backtest)
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          if ! git diff --quiet -- bot/sent.json; then
+          if ! git diff --quiet -- bot/sent.json bot/results.json; then
             git config user.name "wc2026-bot"
             git config user.email "actions@users.noreply.github.com"
-            git add bot/sent.json
-            git commit -m "chore(bot): actualizar avisos enviados [skip ci]"
+            git add bot/sent.json bot/results.json
+            git commit -m "chore(bot): avisos enviados + predicciones guardadas [skip ci]"
             git push
           else
-            echo "Sin cambios en sent.json"
+            echo "Sin cambios que guardar"
           fi

@@ -2,6 +2,7 @@
   {
     "home": "México",
     "away": "Sudáfrica",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo A · J1",
     "pred": {
@@ -23,6 +24,7 @@
   {
     "home": "Corea del Sur",
     "away": "Chequia",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo A · J1",
     "pred": {
@@ -44,6 +46,7 @@
   {
     "home": "Canadá",
     "away": "Bosnia y Herz.",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo B · J1",
     "pred": {
@@ -65,6 +68,7 @@
   {
     "home": "Suiza",
     "away": "Catar",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo B · J1",
     "pred": {
@@ -86,6 +90,7 @@
   {
     "home": "Brasil",
     "away": "Marruecos",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo C · J1",
     "pred": {
@@ -107,6 +112,7 @@
   {
     "home": "Escocia",
     "away": "Haití",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo C · J1",
     "pred": {
@@ -128,6 +134,7 @@
   {
     "home": "Estados Unidos",
     "away": "Paraguay",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo D · J1",
     "pred": {
@@ -149,6 +156,7 @@
   {
     "home": "Australia",
     "away": "Türkiye",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo D · J1",
     "pred": {
@@ -170,6 +178,7 @@
   {
     "home": "Alemania",
     "away": "Curazao",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo E · J1",
     "pred": {
@@ -191,6 +200,7 @@
   {
     "home": "Costa de Marfil",
     "away": "Ecuador",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo E · J1",
     "pred": {
@@ -212,6 +222,7 @@
   {
     "home": "Países Bajos",
     "away": "Japón",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo F · J1",
     "pred": {
@@ -233,6 +244,7 @@
   {
     "home": "Suecia",
     "away": "Túnez",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo F · J1",
     "pred": {
@@ -254,6 +266,7 @@
   {
     "home": "Bélgica",
     "away": "Egipto",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo G · J1",
     "pred": {
@@ -275,6 +288,7 @@
   {
     "home": "Irán",
     "away": "Nueva Zelanda",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo G · J1",
     "pred": {
@@ -296,6 +310,7 @@
   {
     "home": "España",
     "away": "Cabo Verde",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo H · J1",
     "pred": {
@@ -317,6 +332,7 @@
   {
     "home": "Arabia Saudita",
     "away": "Uruguay",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo H · J1",
     "pred": {
@@ -338,6 +354,7 @@
   {
     "home": "Francia",
     "away": "Senegal",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo I · J1",
     "pred": {
@@ -359,6 +376,7 @@
   {
     "home": "Noruega",
     "away": "Irak",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo I · J1",
     "pred": {
@@ -380,6 +398,7 @@
   {
     "home": "Argentina",
     "away": "Argelia",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo J · J1",
     "pred": {
@@ -401,6 +420,7 @@
   {
     "home": "Austria",
     "away": "Jordania",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo J · J1",
     "pred": {
@@ -422,6 +442,7 @@
   {
     "home": "Portugal",
     "away": "RD del Congo",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo K · J1",
     "pred": {
@@ -443,6 +464,7 @@
   {
     "home": "Colombia",
     "away": "Uzbekistán",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo K · J1",
     "pred": {
@@ -464,6 +486,7 @@
   {
     "home": "Inglaterra",
     "away": "Croacia",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo L · J1",
     "pred": {
@@ -485,6 +508,7 @@
   {
     "home": "Ghana",
     "away": "Panamá",
+    "round": 1,
     "date": "2026-06",
     "stage": "Grupo L · J1",
     "pred": {

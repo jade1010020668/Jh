@@ -29,9 +29,11 @@ const Models = require("../js/models.js");
 const { TEAMS, HOST_TEAMS } = require("../js/data.js");
 const { adjustForFactors } = require("./llm-adjust.js");
 const { fixtureId, nextUpcoming, pickDueFixtures } = require("./lib/schedule.js");
+const { drawAlert } = require("./lib/insights.js");
 
 const FIX = path.join(__dirname, "fixtures.json");
 const SENT = path.join(__dirname, "sent.json");
+const RESULTS = path.join(__dirname, "results.json");
 
 const PHONE = process.env.CALLMEBOT_PHONE;
 const APIKEY = process.env.CALLMEBOT_APIKEY;
@@ -63,11 +65,21 @@ function optsFor(home, away) {
  *  Si no hay clave de Anthropic o falla, se usa solo el paso (1) (determinista).
  *  Devuelve { r (mercados + λ), adj (info del ajuste) }.
  */
+/** Snapshot guardable de unos mercados (lo que va a results.json). */
+function snapshot(m) {
+  const t = m.topScores[0];
+  const r3 = x => Math.round(x * 1000) / 1000;
+  return { pHome: r3(m.pHome), pDraw: r3(m.pDraw), pAway: r3(m.pAway),
+    over25: r3(m.over25), btts: r3(m.btts), topScore: `${t.h}-${t.a}` };
+}
+
 async function analyze(fx) {
   const { home, away } = fx;
   const opts = optsFor(home, away);
   const eg = Models.expectedGoals(eloOf(home), eloOf(away), opts);
-  let lambdaHome = eg.lambdaHome, lambdaAway = eg.lambdaAway;
+
+  // Base matemática pura (sin Opus) -> para registrar y comparar.
+  const base = Models.marketsFromMatrix(Models.scoreMatrix(eg.lambdaHome, eg.lambdaAway, opts));
 
   let adj = { used: false, homeAdjPct: 0, awayAdjPct: 0, note: "" };
   try {
@@ -75,13 +87,35 @@ async function analyze(fx) {
   } catch (e) {
     console.error("Aviso: el ajuste de Opus 4.8 falló; uso solo el modelo matemático:", e.message);
   }
+  let lambdaHome = eg.lambdaHome, lambdaAway = eg.lambdaAway;
   if (adj.used) {
     lambdaHome = Models.clamp(lambdaHome * (1 + adj.homeAdjPct / 100), 0.05, 9);
     lambdaAway = Models.clamp(lambdaAway * (1 + adj.awayAdjPct / 100), 0.05, 9);
   }
-  const matrix = Models.scoreMatrix(lambdaHome, lambdaAway, opts);
-  const markets = Models.marketsFromMatrix(matrix);
-  return { r: { ...markets, lambdaHome, lambdaAway }, adj };
+  const markets = Models.marketsFromMatrix(Models.scoreMatrix(lambdaHome, lambdaAway, opts));
+  return { r: { ...markets, lambdaHome, lambdaAway }, base, adj };
+}
+
+/**
+ *  Registra la predicción de un partido en results.json (sin 'actual'), para
+ *  poder medir luego cómo de bien acertó (incluido el efecto de Opus) de forma
+ *  HONESTA: se guarda ANTES del partido. Si ya existe, no la duplica.
+ *  Nunca rompe el envío: cualquier fallo se ignora.
+ */
+function recordPrediction(fx, base, markets, adj) {
+  try {
+    let arr = [];
+    try { arr = JSON.parse(fs.readFileSync(RESULTS, "utf8")); } catch { /* primera vez */ }
+    if (arr.some(m => m.home === fx.home && m.away === fx.away && m.kickoff === fx.kickoff)) return;
+    arr.push({
+      home: fx.home, away: fx.away, kickoff: fx.kickoff || null,
+      pred: snapshot(base),
+      predOpus: adj.used ? snapshot(markets) : null,
+      adj: adj.used ? { homeAdjPct: adj.homeAdjPct, awayAdjPct: adj.awayAdjPct, note: adj.note } : null,
+      actual: null,
+    });
+    fs.writeFileSync(RESULTS, JSON.stringify(arr, null, 2) + "\n");
+  } catch (e) { console.error("Aviso: no se pudo registrar la predicción:", e.message); }
 }
 
 const fmt = p => (p * 100).toFixed(0) + "%";
@@ -100,6 +134,7 @@ function buildMessage(fx, r, adj) {
     `⚽ +2.5 goles: ${fmt(r.over25)} · Ambos marcan: ${fmt(r.btts)}`,
     `🎲 Otros marcadores: ${others}`,
   ];
+  if (drawAlert(r)) lines.push(`⚖️ Empate muy probable (partido parejo)`);
   if (adj && adj.used) lines.push(`🔎 Factores: ${adj.note || "sin señales relevantes"}`);
   lines.push(``);
   lines.push(adj && adj.used
@@ -158,10 +193,11 @@ async function main() {
   const due = pickDueFixtures(fixtures, sentSet, now, LEAD, WINDOW);
   let count = 0;
   for (const { fx, id, mins } of due) {
-    const { r, adj } = await analyze(fx);
+    const { r, base, adj } = await analyze(fx);
     const msg = buildMessage(fx, r, adj);
     console.log(`→ ${id}  (${mins.toFixed(0)} min)\n${msg}\n`);
     if (!DRY) await sendWhatsApp(msg);
+    recordPrediction(fx, base, r, adj);   // guarda la predicción (honesta) para el backtest
     sentSet.add(id);
     count++;
     logSummary(`- ✅ **${fx.home} vs ${fx.away}** — ${top1X2(r)} · en ${mins.toFixed(0)} min`
