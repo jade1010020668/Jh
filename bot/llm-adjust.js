@@ -1,14 +1,21 @@
 /* ============================================================================
- *  bot/llm-adjust.js  —  Capa híbrida: Opus 4.8 + búsqueda web
+ *  bot/llm-adjust.js  —  Capa híbrida MULTIFACTOR: Opus 4.8 + búsqueda web
  * ----------------------------------------------------------------------------
  *  Toma la línea base matemática (goles esperados λ de cada equipo) y la AJUSTA
- *  según LESIONES y SUSPENSIONES confirmadas, buscadas en vivo en la web.
+ *  según MÚLTIPLES factores en vivo, buscados en la web:
+ *    1) Lesiones y suspensiones confirmadas.
+ *    2) Forma reciente y alineación probable (rotaciones si ya está clasificado).
+ *    3) Cuotas del mercado (señal fuerte de la fuerza relativa real).
+ *    4) Contexto físico: altitud de la sede (p. ej. CDMX 2240 m), clima,
+ *       descanso y viajes/fatiga.
+ *    5) Cualquier otro indicador relevante que encuentre (h2h, bajas de último
+ *       minuto, motivación/importancia del partido, etc.).
  *
  *  Principios de diseño (para que "siempre se analice igual"):
  *    · Modelo fijo: claude-opus-4-8.
  *    · Procedimiento fijo: mismo system prompt + misma lista de factores.
  *    · Ajuste ACOTADO a ±MAX_ADJ % por equipo -> la base matemática manda;
- *      el LLM solo "empuja" por las bajas, nunca reescribe el marcador.
+ *      el LLM solo "empuja", nunca reescribe el marcador.
  *    · Si no hay API key, no hay SDK, o algo falla -> ajuste 0 (la rutina
  *      cae limpiamente al modelo determinista y nunca se rompe).
  *
@@ -26,26 +33,38 @@ let Anthropic = null;
 try { Anthropic = require("@anthropic-ai/sdk"); } catch { /* sin SDK -> fallback */ }
 
 const SYSTEM = [
-  "Eres un analista de fútbol. Tu ÚNICA tarea es estimar el impacto de las",
-  "LESIONES y SUSPENSIONES confirmadas en el partido indicado y devolver un",
-  "ajuste ACOTADO a los goles esperados de cada equipo. Sigue SIEMPRE el mismo",
-  "procedimiento, en este orden:",
-  "1) Busca en la web las bajas (lesionados y sancionados) confirmadas de AMBOS",
-  "   equipos para ESTE partido y fecha.",
-  "2) Pondera el impacto: la baja de cracks/goleadores o de varios titulares",
-  "   reduce los goles esperados de su equipo; un rival debilitado puede subir",
-  "   ligeramente los del otro.",
-  "3) Sé conservador: si no hay bajas claras, o la información no es fiable o no",
-  "   es de este partido, ajusta 0. Nunca inventes bajas.",
+  "Eres un analista de fútbol profesional. Tu tarea es analizar el partido",
+  "indicado con la información MÁS ACTUAL de la web y devolver un ajuste ACOTADO",
+  "a los goles esperados de cada equipo. Sigue SIEMPRE el mismo procedimiento, y",
+  "considera TODOS estos factores (busca cada uno en la web para AMBOS equipos):",
+  "  1) LESIONES y SUSPENSIONES confirmadas (bajas de titulares y goleadores).",
+  "  2) FORMA RECIENTE y ALINEACIÓN probable (rachas; rotaciones si un equipo ya",
+  "     está clasificado o no se juega nada).",
+  "  3) CUOTAS del mercado de apuestas: son una señal fuerte de la fuerza real;",
+  "     si el mercado discrepa mucho de un duelo parejo, refléjalo con prudencia.",
+  "  4) CONTEXTO FÍSICO: altitud de la sede (p. ej. Ciudad de México ~2240 m),",
+  "     clima previsto, descanso entre partidos y viajes/fatiga.",
+  "  5) OTROS INDICADORES relevantes que encuentres: historial directo (h2h),",
+  "     bajas de último minuto, importancia/motivación del partido, etc.",
+  "",
+  "Reglas:",
+  "  · Pondera el conjunto: varias señales en la misma dirección -> más ajuste;",
+  "    señales contradictorias o débiles -> ajuste pequeño o 0.",
+  "  · Sé CONSERVADOR y honesto: si la información no es fiable o no es de este",
+  "    partido, ajusta 0. Nunca inventes datos.",
+  "  · El ajuste está acotado a ±25 % por equipo a propósito: la base estadística",
+  "    manda; tú solo afinas.",
   "",
   "Responde EXCLUSIVAMENTE con un objeto JSON (sin markdown, sin texto extra):",
   '{"homeAdjPct": <número entre -25 y 25>,',
   ' "awayAdjPct": <número entre -25 y 25>,',
-  ' "note": "<resumen en español, máx 140 caracteres, citando las bajas clave>",',
+  ' "note": "<resumen en español, máx 180 caracteres, citando los 2-3 factores',
+  '          más decisivos, p. ej. bajas, forma, cuotas, altitud>",',
   ' "confidence": "<alta|media|baja>"}',
   "",
   "homeAdjPct y awayAdjPct son el cambio PORCENTUAL en los goles esperados de",
-  "cada equipo debido a SUS bajas (negativo = juega peor por las ausencias).",
+  "cada equipo según el conjunto de factores (negativo = rinde peor de lo que",
+  "indica su fuerza histórica).",
 ].join("\n");
 
 const ZERO = { used: false, homeAdjPct: 0, awayAdjPct: 0, note: "", confidence: "" };
@@ -62,10 +81,11 @@ function parseJsonObject(text) {
 const clampPct = x => Math.max(-MAX_ADJ, Math.min(MAX_ADJ, Number(x) || 0));
 
 /**
- *  Devuelve { used, homeAdjPct, awayAdjPct, note, confidence }.
+ *  Analiza el partido con múltiples factores en vivo y devuelve
+ *  { used, homeAdjPct, awayAdjPct, note, confidence }.
  *  `used:false` significa que se usa solo el modelo matemático.
  */
-async function adjustForInjuries({ home, away, kickoffISO }) {
+async function adjustForFactors({ home, away, kickoffISO, venue }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || !Anthropic) return { ...ZERO };
 
@@ -73,17 +93,19 @@ async function adjustForInjuries({ home, away, kickoffISO }) {
   const userMsg =
     `Partido del Mundial 2026: ${home} (local) vs ${away} (visitante). ` +
     `Inicio (UTC): ${kickoffISO || "desconocido"}. ` +
-    `Busca las bajas por lesión o sanción de ambas selecciones para este ` +
-    `partido y responde solo con el JSON indicado.`;
+    (venue ? `Sede: ${venue}. ` : "") +
+    `Investiga en la web los factores indicados (lesiones/sanciones, forma y ` +
+    `alineaciones, cuotas, contexto físico y cualquier otro relevante) y ` +
+    `responde solo con el JSON indicado.`;
 
   let messages = [{ role: "user", content: userMsg }];
   let resp, guard = 0;
   do {
     resp = await client.messages.create({
       model: MODEL,
-      max_tokens: 1500,
-      thinking: { type: "adaptive" },      // adaptativo: piensa lo justo entre búsquedas
-      output_config: { effort: "low" },     // tarea acotada -> barato y consistente
+      max_tokens: 2500,
+      thinking: { type: "adaptive" },       // adaptativo: piensa lo justo entre búsquedas
+      output_config: { effort: "medium" },  // varios factores -> búsqueda más completa
       tools: [{ type: "web_search_20260209", name: "web_search" }],
       system: SYSTEM,
       messages,
@@ -108,9 +130,9 @@ async function adjustForInjuries({ home, away, kickoffISO }) {
     used: true,
     homeAdjPct: clampPct(parsed.homeAdjPct),
     awayAdjPct: clampPct(parsed.awayAdjPct),
-    note: String(parsed.note || "").slice(0, 140),
+    note: String(parsed.note || "").slice(0, 180),
     confidence: String(parsed.confidence || ""),
   };
 }
 
-module.exports = { adjustForInjuries, MAX_ADJ, MODEL };
+module.exports = { adjustForFactors, MAX_ADJ, MODEL };

@@ -25,7 +25,7 @@ const fs = require("fs");
 const path = require("path");
 const Models = require("../js/models.js");
 const { TEAMS, HOST_TEAMS } = require("../js/data.js");
-const { adjustForInjuries } = require("./llm-adjust.js");
+const { adjustForFactors } = require("./llm-adjust.js");
 
 const FIX = path.join(__dirname, "fixtures.json");
 const SENT = path.join(__dirname, "sent.json");
@@ -68,7 +68,7 @@ async function analyze(fx) {
 
   let adj = { used: false, homeAdjPct: 0, awayAdjPct: 0, note: "" };
   try {
-    adj = await adjustForInjuries({ home, away, kickoffISO: fx.kickoff });
+    adj = await adjustForFactors({ home, away, kickoffISO: fx.kickoff, venue: fx.venue });
   } catch (e) {
     console.error("Aviso: el ajuste de Opus 4.8 falló; uso solo el modelo matemático:", e.message);
   }
@@ -97,10 +97,10 @@ function buildMessage(fx, r, adj) {
     `⚽ +2.5 goles: ${fmt(r.over25)} · Ambos marcan: ${fmt(r.btts)}`,
     `🎲 Otros marcadores: ${others}`,
   ];
-  if (adj && adj.used) lines.push(`🩹 Bajas: ${adj.note || "sin bajas relevantes"}`);
+  if (adj && adj.used) lines.push(`🔎 Factores: ${adj.note || "sin señales relevantes"}`);
   lines.push(``);
   lines.push(adj && adj.used
-    ? `⚠️ Estimación probabilística (base Elo/Poisson + Opus 4.8 por lesiones), no una certeza. Apuesta con responsabilidad. +18`
+    ? `⚠️ Estimación probabilística (base Elo/Poisson + Opus 4.8 multifactor), no una certeza. Apuesta con responsabilidad. +18`
     : `⚠️ Es una ESTIMACIÓN probabilística, no una certeza. Apuesta con responsabilidad. +18`);
   return lines.join("\n");
 }
