@@ -1,0 +1,38 @@
+name: CI (tests + validación)
+
+# Corre en cada push y PR: ejecuta los tests, valida el calendario y hace un
+# dry-run del bot. Así el "verde" del PR significa algo de verdad.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+
+      - name: Tests unitarios (motor, capa Opus, horario, validador)
+        run: npm test
+
+      - name: Validar el calendario (fixtures.json)
+        run: npm run validate
+
+      - name: Auto-chequeo (doctor)
+        run: npm run doctor
+
+      - name: Dry-run del bot (sin enviar)
+        run: npm run test-bot
+
+      - name: Scoreboard de calibración
+        run: npm run scoreboard

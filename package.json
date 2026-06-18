@@ -2,9 +2,13 @@
   "name": "wc2026-whatsapp-bot",
   "private": true,
   "version": "1.0.0",
-  "description": "Avisos del Mundial 2026 por WhatsApp: base matemática (Elo/Poisson) + Opus 4.8 con búsqueda web para lesiones y suspensiones.",
+  "description": "Avisos del Mundial 2026 por WhatsApp: base matemática (Elo/Poisson) + ajuste MULTIFACTOR de Opus 4.8 con búsqueda web.",
   "license": "MIT",
   "scripts": {
+    "test": "node --test",
+    "validate": "node bot/validate.js",
+    "doctor": "node bot/doctor.js",
+    "scoreboard": "node bot/scoreboard.js",
     "predict": "node bot/predict.js",
     "test-bot": "TEST_MODE=1 DRY_RUN=1 node bot/predict.js"
   },

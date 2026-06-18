@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Instalar dependencias (SDK de Anthropic para el ajuste por lesiones)
+      - name: Instalar dependencias (SDK de Anthropic para el ajuste multifactor)
         run: npm install --no-audit --no-fund
 
       - name: Calcular y enviar avisos

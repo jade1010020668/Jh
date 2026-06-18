@@ -102,6 +102,26 @@ Los cron de GitHub Actions **solo corren desde la rama `main`**. Fusiona el PR a
 
 ---
 
+## Verificar que todo funciona (tests + utilidades)
+
+Hay una **red de seguridad** para no depender de "probar a mano":
+
+```bash
+npm test           # 35 tests: motor matemático, capa Opus (acotada), horario, validador
+npm run validate   # revisa fixtures.json: equipos válidos, horas, duplicados, zona horaria
+npm run doctor     # panel de estado: ¿secrets?, ¿SDK?, ¿calendario?, próximo partido y su predicción
+npm run scoreboard # ¿acierta el modelo? Brier/RPS y % de acierto sobre resultados reales (bot/results.json)
+```
+
+- **CI:** el workflow `.github/workflows/ci.yml` corre `test + validate + doctor + dry-run + scoreboard`
+  en cada push/PR, así el verde significa algo de verdad.
+- **Calibración:** añade partidos jugados a `bot/results.json` (con su `actual`) y `npm run scoreboard`
+  te dice si el modelo va mejor que el azar (Brier < 0.667).
+- **Robustez en producción:** el envío reintenta (1s/2s/4s), si la rutina falla intenta **avisarte
+  del fallo por WhatsApp**, y deja un resumen en el *Step Summary* del job de Actions.
+
+---
+
 ## Ajustes
 - `LEAD_MINUTES` (def. 60): minutos antes del partido para avisar.
 - `WINDOW_MINUTES` (def. 20): ancho de la ventana de disparo.

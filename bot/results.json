@@ -1,0 +1,44 @@
+[
+  {
+    "home": "México",
+    "away": "Sudáfrica",
+    "date": "2026-06-11",
+    "stage": "Grupo A",
+    "pred": {
+      "pHome": 0.51,
+      "pDraw": 0.257,
+      "pAway": 0.233,
+      "over25": 0.511,
+      "btts": 0.535,
+      "topScore": "1-1",
+      "lambdaHome": 1.667,
+      "lambdaAway": 1.053
+    },
+    "actual": {
+      "homeGoals": 2,
+      "awayGoals": 0
+    },
+    "source": "https://www.cnn.com/2026/06/11/sport/live-news/world-cup-mexico-south-africa"
+  },
+  {
+    "home": "Corea del Sur",
+    "away": "Chequia",
+    "date": "2026-06-11",
+    "stage": "Grupo A",
+    "pred": {
+      "pHome": 0.357,
+      "pDraw": 0.276,
+      "pAway": 0.367,
+      "over25": 0.494,
+      "btts": 0.546,
+      "topScore": "1-1",
+      "lambdaHome": 1.314,
+      "lambdaAway": 1.336
+    },
+    "actual": {
+      "homeGoals": 2,
+      "awayGoals": 1
+    },
+    "source": "https://www.aljazeera.com/sports/2026/6/11/south-korea-vs-czechia-world-cup-group-match-teams-start-and-lineups"
+  }
+]

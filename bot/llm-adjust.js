@@ -85,11 +85,13 @@ const clampPct = x => Math.max(-MAX_ADJ, Math.min(MAX_ADJ, Number(x) || 0));
  *  { used, homeAdjPct, awayAdjPct, note, confidence }.
  *  `used:false` significa que se usa solo el modelo matemático.
  */
-async function adjustForFactors({ home, away, kickoffISO, venue }) {
+async function adjustForFactors({ home, away, kickoffISO, venue }, deps = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || !Anthropic) return { ...ZERO };
+  const Client = deps.Anthropic || Anthropic;
+  // Sin cliente inyectado, hace falta clave y SDK; si no, ajuste 0 (fallback).
+  if (!deps.client && (!apiKey || !Client)) return { ...ZERO };
 
-  const client = new Anthropic({ apiKey });
+  const client = deps.client || new Client({ apiKey });
   const userMsg =
     `Partido del Mundial 2026: ${home} (local) vs ${away} (visitante). ` +
     `Inicio (UTC): ${kickoffISO || "desconocido"}. ` +
@@ -135,4 +137,5 @@ async function adjustForFactors({ home, away, kickoffISO, venue }) {
   };
 }
 
-module.exports = { adjustForFactors, MAX_ADJ, MODEL };
+// parseJsonObject y clampPct se exportan para los tests unitarios.
+module.exports = { adjustForFactors, MAX_ADJ, MODEL, parseJsonObject, clampPct };

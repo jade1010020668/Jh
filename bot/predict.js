@@ -6,9 +6,11 @@
  *    1. Lee el calendario (bot/fixtures.json) y el estado (bot/sent.json).
  *    2. Busca partidos que arrancan dentro de la ventana objetivo (~1 h).
  *    3. Calcula el marcador (HÍBRIDO): base matemática de la web (models.js)
- *       + ajuste de Opus 4.8 con búsqueda web por LESIONES y SUSPENSIONES.
- *    4. Envía el aviso por WhatsApp con CallMeBot.
+ *       + ajuste MULTIFACTOR de Opus 4.8 con búsqueda web (lesiones, forma,
+ *       cuotas, contexto físico…).
+ *    4. Envía el aviso por WhatsApp con CallMeBot (con reintentos).
  *    5. Marca el partido como avisado para no repetirlo.
+ *  Si la rutina falla, intenta avisarte del fallo por WhatsApp.
  *
  *  Variables de entorno:
  *    CALLMEBOT_PHONE   tu número con prefijo de país (p. ej. 521556...)
@@ -26,6 +28,7 @@ const path = require("path");
 const Models = require("../js/models.js");
 const { TEAMS, HOST_TEAMS } = require("../js/data.js");
 const { adjustForFactors } = require("./llm-adjust.js");
+const { fixtureId, nextUpcoming, pickDueFixtures } = require("./lib/schedule.js");
 
 const FIX = path.join(__dirname, "fixtures.json");
 const SENT = path.join(__dirname, "sent.json");
@@ -105,18 +108,36 @@ function buildMessage(fx, r, adj) {
   return lines.join("\n");
 }
 
-async function sendWhatsApp(text) {
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** Envía por CallMeBot con reintentos (la API limita y a veces da 5xx). */
+async function sendWhatsApp(text, tries = 3) {
   const url = "https://api.callmebot.com/whatsapp.php"
     + `?phone=${encodeURIComponent(PHONE)}`
     + `&text=${encodeURIComponent(text)}`
     + `&apikey=${encodeURIComponent(APIKEY)}`;
-  const res = await fetch(url);
-  const body = await res.text();
-  if (!res.ok) throw new Error(`CallMeBot HTTP ${res.status}: ${body.slice(0, 200)}`);
-  return body.slice(0, 200);
+  let lastErr;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(url);
+      const body = await res.text();
+      if (!res.ok) throw new Error(`CallMeBot HTTP ${res.status}: ${body.slice(0, 200)}`);
+      return body.slice(0, 200);
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await sleep(1000 * 2 ** i);   // 1s, 2s, 4s
+    }
+  }
+  throw lastErr;
 }
 
-(async () => {
+/** Añade una línea al resumen del job de GitHub Actions (si está disponible). */
+function logSummary(line) {
+  const f = process.env.GITHUB_STEP_SUMMARY;
+  if (f) { try { fs.appendFileSync(f, line + "\n"); } catch { /* no-op */ } }
+}
+
+async function main() {
   const fixtures = JSON.parse(fs.readFileSync(FIX, "utf8"));
   let sent = [];
   try { sent = JSON.parse(fs.readFileSync(SENT, "utf8")); } catch { /* primera vez */ }
@@ -124,10 +145,7 @@ async function sendWhatsApp(text) {
   const now = Date.now();
 
   if (TEST) {
-    const upcoming = fixtures
-      .filter(f => f.kickoff && new Date(f.kickoff).getTime() > now)
-      .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
-    const fx = upcoming || { home: "Argentina", away: "Brasil",
+    const fx = nextUpcoming(fixtures, now) || { home: "Argentina", away: "Brasil",
       kickoff: new Date(now + 3600e3).toISOString() };
     const { r, adj } = await analyze(fx);
     const msg = "🧪 PRUEBA DE LA RUTINA\n" + buildMessage(fx, r, adj);
@@ -137,23 +155,36 @@ async function sendWhatsApp(text) {
     return;
   }
 
-  const lo = LEAD - WINDOW / 2, hi = LEAD + WINDOW / 2;
+  const due = pickDueFixtures(fixtures, sentSet, now, LEAD, WINDOW);
   let count = 0;
-  for (const fx of fixtures) {
-    if (!fx.kickoff) continue;                       // sin hora -> se ignora
-    const t = new Date(fx.kickoff).getTime();
-    if (isNaN(t)) continue;
-    const id = `${fx.home}|${fx.away}|${fx.kickoff}`;
-    if (sentSet.has(id)) continue;
-    const mins = (t - now) / 60000;
-    if (mins < lo || mins > hi) continue;            // fuera de la ventana
+  for (const { fx, id, mins } of due) {
     const { r, adj } = await analyze(fx);
     const msg = buildMessage(fx, r, adj);
     console.log(`→ ${id}  (${mins.toFixed(0)} min)\n${msg}\n`);
     if (!DRY) await sendWhatsApp(msg);
     sentSet.add(id);
     count++;
+    logSummary(`- ✅ **${fx.home} vs ${fx.away}** — ${top1X2(r)} · en ${mins.toFixed(0)} min`
+      + `${adj.used ? " · 🔎 Opus" : ""}${DRY ? " · (DRY_RUN)" : ""}`);
   }
   fs.writeFileSync(SENT, JSON.stringify([...sentSet], null, 2) + "\n");
-  console.log(`Avisos enviados en esta ejecución: ${count}${DRY ? " (DRY_RUN)" : ""}`);
-})().catch(e => { console.error("ERROR:", e.message); process.exit(1); });
+  const summary = `Avisos enviados en esta ejecución: ${count}${DRY ? " (DRY_RUN)" : ""}`;
+  console.log(summary);
+  logSummary(`\n**${summary}** · ${due.length} en ventana.`);
+}
+
+/** Resumen 1X2 corto para el log. */
+function top1X2(r) {
+  return `${fmt(r.pHome)}/${fmt(r.pDraw)}/${fmt(r.pAway)}`;
+}
+
+main().catch(async (e) => {
+  console.error("ERROR:", e.message);
+  logSummary(`- ❌ **La rutina falló:** ${e.message}`);
+  // Intentar avisar del fallo (sin romper si el aviso también falla).
+  if (!DRY) {
+    try { await sendWhatsApp(`⚠️ La rutina del Mundial 2026 falló: ${e.message}`.slice(0, 300)); }
+    catch (e2) { console.error("Tampoco se pudo avisar del fallo:", e2.message); }
+  }
+  process.exit(1);
+});
