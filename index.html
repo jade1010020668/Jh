@@ -49,8 +49,8 @@
         <details class="params-box">
           <summary>⚙️ Parámetros avanzados del modelo</summary>
           <div class="params">
-            <label>Goles / punto Elo
-              <input type="number" id="p-goalsPerElo" value="0.0036" step="0.0001" /></label>
+            <label>Sensibilidad Elo→goles
+              <input type="number" id="p-eloStrength" value="0.0017" step="0.0001" /></label>
             <label>Goles totales base
               <input type="number" id="p-baseGoals" value="2.65" step="0.05" /></label>
             <label>ρ Dixon-Coles
@@ -174,10 +174,17 @@
            A frente a B:</p>
         <div class="formula">We = 1 / (1 + 10^(−(R_A − R_B) / 400))</div>
 
-        <h3>2. Elo → goles esperados (λ)</h3>
-        <p>La diferencia de Elo se traduce en "supremacía" de goles, repartida
-           sobre un total base (≈2.65 goles/partido, media mundialista):</p>
-        <div class="formula">λ_local = (total + supremacía) / 2 · · · λ_visita = (total − supremacía) / 2</div>
+        <h3>2. Elo → goles esperados (λ) — modelo log-lineal</h3>
+        <p>Se usa la forma <b>multiplicativa</b> (Maher 1982), el estándar del
+           Poisson de fútbol. Garantiza λ&gt;0 y hace que las goleadas tengan
+           más goles totales (como en la realidad), porque el producto de las
+           λ se mantiene constante y la suma crece con el desajuste:</p>
+        <div class="formula">d = (R_local + localía − R_visita) · sensibilidad
+λ_local = e^(μ + d) · · · λ_visita = e^(μ − d) · · · μ = ln(goles_base / 2)</div>
+        <p style="color:var(--muted);font-size:13px">⚠️ Limitación honesta: un solo
+           número Elo <b>colapsa ataque y defensa</b> en una dimensión. Un modelo
+           ideal estima fuerzas de ataque y defensa por separado, pero eso exige
+           más datos. Aquí prima la robustez y que tú puedas ajustar los ratings.</p>
 
         <h3>3. Poisson + Dixon-Coles (1997)</h3>
         <p>Los goles siguen una distribución de Poisson. La corrección de
@@ -194,10 +201,12 @@
 
         <h3>5. Cuotas, margen y valor (+EV)</h3>
         <p>Una cuota decimal <code>O</code> implica una probabilidad
-           <code>1/O</code>. La suma de las tres implícitas supera el 100 %: ese
-           exceso es el <b>margen de la casa</b> (su ventaja). Apostar tiene
-           sentido matemático solo cuando tu probabilidad estimada <code>p</code>
-           supera la implícita:</p>
+           <code>1/O</code>. La suma de las implícitas supera el 100 %: ese
+           exceso es el <b>margen de la casa</b> (su ventaja). Para estimar las
+           probabilidades "justas" se usa el <b>método de Shin (1992)</b>, que
+           corrige el sesgo favorito-perdedor mejor que el reparto proporcional.
+           Apostar tiene sentido matemático solo cuando tu probabilidad estimada
+           <code>p</code> supera la implícita:</p>
         <div class="formula">Valor esperado (EV) = p · O − 1   →   apuesta de valor si EV &gt; 0</div>
 
         <h3>6. Criterio de Kelly</h3>

@@ -74,6 +74,7 @@ const Simulation = (() => {
       for (const g of Object.keys(groups)) {
         const table = groups[g].map(t => ({
           team: t, pts: 0, gd: 0, gf: 0,
+          tb: Math.random(),   // desempate aleatorio FIJO por equipo y simulación
         }));
         // Round robin (todos contra todos).
         for (let i = 0; i < table.length; i++) {
@@ -154,9 +155,11 @@ const Simulation = (() => {
     return o;
   }
 
-  /** Comparador de tabla: puntos, dif. de goles, goles a favor (desc). */
+  /** Comparador de tabla: puntos, dif. de goles, goles a favor, desempate fijo.
+   *  Usa `tb` (asignado una vez por simulación) en vez de Math.random() para
+   *  no violar el contrato de Array.sort (un comparador debe ser consistente). */
   function cmpTable(a, b) {
-    return b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || Math.random() - 0.5;
+    return b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.tb - b.tb;
   }
 
   return { run, seedOrder };

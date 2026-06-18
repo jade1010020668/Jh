@@ -24,7 +24,7 @@ function getTeams() {
 /** Lee los parámetros avanzados desde la UI. */
 function getOpts() {
   return {
-    goalsPerElo: numVal("p-goalsPerElo", Models.DEFAULTS.goalsPerElo),
+    eloToStrength: numVal("p-eloStrength", Models.DEFAULTS.eloToStrength),
     baseTotalGoals: numVal("p-baseGoals", Models.DEFAULTS.baseTotalGoals),
     rho: numVal("p-rho", Models.DEFAULTS.rho),
     homeAdvantageElo: numVal("p-homeAdv", Models.DEFAULTS.homeAdvantageElo),
@@ -60,7 +60,7 @@ function initMatchPanel() {
   $("sel-away").value = "Brasil";
 
   ["sel-home", "sel-away", "chk-homeadv",
-   "p-goalsPerElo", "p-baseGoals", "p-rho", "p-homeAdv",
+   "p-eloStrength", "p-baseGoals", "p-rho", "p-homeAdv",
    "f-trust", "f-kelly", "f-bankroll",
    "odd-1", "odd-x", "odd-2", "odd-over", "odd-under", "odd-btts-y", "odd-btts-n"]
     .forEach(id => $(id)?.addEventListener("input", renderMatch));

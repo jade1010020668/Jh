@@ -3,26 +3,27 @@
  * ----------------------------------------------------------------------------
  *  Implementa los modelos de referencia mundial para análisis de fútbol:
  *
- *   1. Elo (World Football Elo)  -> fuerza relativa de cada selección.
- *   2. Mapeo Elo -> goles esperados (λ, "expected goals" del partido).
- *   3. Poisson + corrección de Dixon-Coles (1997) -> matriz de marcadores.
- *   4. Probabilidades 1X2, Over/Under, Ambos Marcan a partir de la matriz.
- *   5. Conversión de cuotas decimales <-> probabilidad y quita del margen.
- *   6. Detección de valor (+EV) y Criterio de Kelly para el stake.
- *   7. Métricas de calibración: Brier y Ranked Probability Score (RPS).
+ *   1. Elo (World Football Elo)            -> fuerza relativa de cada selección.
+ *   2. Elo -> goles esperados (λ)          -> modelo LOG-LINEAL (Maher 1982),
+ *                                             el estándar del Poisson de fútbol.
+ *   3. Poisson + Dixon-Coles (1997)        -> matriz de marcadores.
+ *   4. 1X2 / Over-Under / Ambos Marcan     -> derivados de la matriz.
+ *   5. Cuotas <-> probabilidad y quita de margen (Shin 1992 + proporcional).
+ *   6. Valor (+EV) y Criterio de Kelly     -> tamaño de apuesta.
+ *   7. Brier, log-loss y RPS               -> calibración del modelo.
  *
- *  Todo es código puro (sin DOM) para poder reutilizarlo en la simulación.
+ *  Código puro (sin DOM) para reutilizarlo en la simulación y en los tests.
  * ==========================================================================*/
 
 const Models = (() => {
 
   /* ----------------------- Parámetros por defecto ------------------------ */
   const DEFAULTS = {
-    goalsPerElo: 0.0036,   // goles de "supremacía" por punto Elo de diferencia
-    baseTotalGoals: 2.65,  // goles totales esperados de referencia (media Mundial)
+    eloToStrength: 0.0017, // convierte puntos Elo a "fuerza" en escala log-gol
+    baseTotalGoals: 2.65,  // goles totales de referencia (media mundialista)
     homeAdvantageElo: 45,  // ventaja de localía (puntos Elo) para selecciones sede
-    rho: -0.05,            // parámetro de dependencia de Dixon-Coles (marcadores bajos)
-    maxGoals: 10,          // tope de goles para construir la matriz de marcadores
+    rho: -0.06,            // dependencia de Dixon-Coles en marcadores bajos
+    maxGoals: 12,          // tope de goles para construir la matriz de marcadores
   };
 
   /* =======================================================================
@@ -36,19 +37,26 @@ const Models = (() => {
   }
 
   /* =======================================================================
-   *  Elo -> goles esperados (λ)
-   *  La diferencia de Elo se traduce en "supremacía" de goles; el total se
-   *  reparte entre ambos equipos. Es el puente entre el rating y el modelo
-   *  de Poisson.
+   *  Elo -> goles esperados (λ)  — MODELO LOG-LINEAL (multiplicativo).
+   *
+   *    μ = ln(goles_base_por_equipo)
+   *    d = (R_local + localía − R_visita) · sensibilidad
+   *    λ_local = exp(μ + d)   ·   λ_visita = exp(μ − d)
+   *
+   *  Ventajas frente al modelo aditivo:
+   *   · λ siempre > 0 (sin recortes artificiales).
+   *   · El producto λ_local·λ_visita es constante, así que la SUMA de goles
+   *     crece cuando hay desajuste -> las goleadas tienen más goles totales,
+   *     que es lo que ocurre en la realidad.
    * =====================================================================*/
   function expectedGoals(ratingHome, ratingAway, opts = {}) {
     const o = { ...DEFAULTS, ...opts };
-    const dr = (ratingHome + (opts.homeAdv || 0)) - ratingAway;
-    const supremacy = clamp(dr * o.goalsPerElo, -3.0, 3.0);
-    const total = o.baseTotalGoals;
-    const lambdaHome = Math.max(0.12, (total + supremacy) / 2);
-    const lambdaAway = Math.max(0.12, (total - supremacy) / 2);
-    return { lambdaHome, lambdaAway, supremacy };
+    const mu = Math.log(Math.max(0.4, o.baseTotalGoals) / 2);
+    const homeAdv = o.homeAdv || 0;
+    const d = clamp((ratingHome + homeAdv - ratingAway) * o.eloToStrength, -2.5, 2.5);
+    const lambdaHome = clamp(Math.exp(mu + d), 0.05, 9);
+    const lambdaAway = clamp(Math.exp(mu - d), 0.05, 9);
+    return { lambdaHome, lambdaAway, supremacy: lambdaHome - lambdaAway };
   }
 
   /* =======================================================================
@@ -96,9 +104,8 @@ const Models = (() => {
         sum += p;
       }
     }
-    // Normalizar (tau y el truncamiento alteran ligeramente la masa total).
     for (let i = 0; i < n; i++)
-      for (let j = 0; j < n; j++) m[i][j] /= sum;
+      for (let j = 0; j < n; j++) m[i][j] /= sum; // normalizar
     return m;
   }
 
@@ -120,11 +127,7 @@ const Models = (() => {
       }
     }
     scoreList.sort((a, b) => b.p - a.p);
-    return {
-      pHome, pDraw, pAway,
-      over25, under25, btts,
-      topScores: scoreList.slice(0, 6),
-    };
+    return { pHome, pDraw, pAway, over25, under25, btts, topScores: scoreList.slice(0, 6) };
   }
 
   /** Pipeline completo: ratings -> probabilidades de un partido. */
@@ -140,53 +143,81 @@ const Models = (() => {
    * =====================================================================*/
   function impliedProb(decimalOdds) { return 1 / decimalOdds; }
 
-  /** Quita el "overround" (margen) repartiendo proporcionalmente. */
-  function removeMargin(decimalOddsArray) {
-    const raw = decimalOddsArray.map(impliedProb);
+  /** Reparto proporcional simple (rápido, pero sesga hacia los favoritos). */
+  function _proportional(decimalOdds) {
+    const raw = decimalOdds.map(impliedProb);
     const overround = raw.reduce((a, b) => a + b, 0);
     return {
       fair: raw.map(p => p / overround),
-      overround,
-      marginPct: (overround - 1) * 100,
+      overround, marginPct: (overround - 1) * 100, method: "proporcional", z: 0,
     };
+  }
+
+  /**
+   *  Método de Shin (1992): corrige el sesgo favorito-perdedor estimando la
+   *  proporción z de apostadores informados. Más preciso que el proporcional.
+   *  Devuelve null si no procede (sin margen o fallo numérico) -> se usa el
+   *  proporcional como respaldo.
+   */
+  function _shin(decimalOdds) {
+    const pi = decimalOdds.map(impliedProb);
+    const B = pi.reduce((a, b) => a + b, 0);   // "booksum" (>1 si hay margen)
+    if (B <= 1.0000001 || pi.some(p => p <= 0)) return null;
+
+    const sumP = (z) => pi.reduce((s, p) =>
+      s + (Math.sqrt(z * z + 4 * (1 - z) * p * p / B) - z) / (2 * (1 - z)), 0);
+
+    // f(z) = Σ p_i(z) − 1.  f(0) = √B − 1 > 0 ; decrece con z. Bisección.
+    let lo = 0, hi = 0.5;
+    if (sumP(hi) - 1 > 0) hi = 0.95;            // ampliar si hiciera falta
+    for (let it = 0; it < 80; it++) {
+      const mid = (lo + hi) / 2;
+      const f = sumP(mid) - 1;
+      if (f > 0) lo = mid; else hi = mid;
+    }
+    const z = (lo + hi) / 2;
+    const fair = pi.map(p =>
+      (Math.sqrt(z * z + 4 * (1 - z) * p * p / B) - z) / (2 * (1 - z)));
+    const total = fair.reduce((a, b) => a + b, 0);
+    if (!isFinite(total) || total <= 0) return null;
+    return {
+      fair: fair.map(p => p / total),           // re-normalización de seguridad
+      overround: B, marginPct: (B - 1) * 100, method: "shin", z,
+    };
+  }
+
+  /** Quita el margen. method = "shin" (por defecto) | "proporcional". */
+  function removeMargin(decimalOdds, method = "shin") {
+    if (method === "proporcional") return _proportional(decimalOdds);
+    return _shin(decimalOdds) || _proportional(decimalOdds);
   }
 
   /* =======================================================================
    *  Valor esperado (+EV) y Criterio de Kelly.
-   *    p   = probabilidad estimada (tu mejor estimación)
-   *    odds= cuota decimal ofrecida por la casa
-   *    EV por unidad apostada = p * odds - 1
-   *    Kelly f* = (p*odds - 1) / (odds - 1)
    * =====================================================================*/
   function valueBet(p, decimalOdds, kellyFraction = 0.25) {
-    const ev = p * decimalOdds - 1;                 // valor esperado por unidad
-    const edgePct = ev * 100;                        // ventaja en %
+    const ev = p * decimalOdds - 1;
+    const edgePct = ev * 100;
     const fullKelly = (decimalOdds - 1) === 0 ? 0
       : (p * decimalOdds - 1) / (decimalOdds - 1);
     const kelly = Math.max(0, fullKelly) * kellyFraction;
     return {
-      ev,
-      edgePct,
-      isValue: ev > 0,
+      ev, edgePct, isValue: ev > 0,
       fullKelly: Math.max(0, fullKelly),
-      kellyStakeFraction: kelly,        // fracción del bankroll a apostar
+      kellyStakeFraction: kelly,
     };
   }
 
-  /* =======================================================================
-   *  Combinar (ensamblar) tu modelo con el mercado.
-   *  El mercado de apuestas es muy informativo; mezclarlo mejora la
-   *  calibración. w = confianza en el mercado (0 = solo modelo, 1 = solo mercado).
-   * =====================================================================*/
+  /** Ensamblar tu modelo con el mercado. w = confianza en el mercado [0,1]. */
   function blend(modelProbs, marketFairProbs, w) {
     return modelProbs.map((pm, i) => (1 - w) * pm + w * marketFairProbs[i]);
   }
 
   /* =======================================================================
-   *  Métricas de calibración (para evaluar el modelo con resultados reales).
+   *  Métricas de calibración.
    * =====================================================================*/
 
-  /** Brier score multiclase: menor es mejor (0 = perfecto). */
+  /** Brier multiclase: menor es mejor (0 = perfecto). */
   function brierScore(probs, outcomeIndex) {
     let s = 0;
     for (let i = 0; i < probs.length; i++) {
@@ -196,11 +227,19 @@ const Models = (() => {
     return s;
   }
 
-  /** Ranked Probability Score: el estándar para 1X2 (resultados ordenados). */
+  /** Brier binario para una selección (acertó/no acertó). */
+  function brierBinary(p, won) { return (p - (won ? 1 : 0)) ** 2; }
+
+  /** Log-loss binario (penaliza más la confianza equivocada). */
+  function logLossBinary(p, won) {
+    const c = clamp(p, 1e-6, 1 - 1e-6);
+    return won ? -Math.log(c) : -Math.log(1 - c);
+  }
+
+  /** Ranked Probability Score: estándar para 1X2 (resultados ordenados). */
   function rps(probs, outcomeIndex) {
     const n = probs.length;
-    let cum = 0, s = 0;
-    let cumOutcome = 0;
+    let cum = 0, cumOutcome = 0, s = 0;
     for (let i = 0; i < n - 1; i++) {
       cum += probs[i];
       cumOutcome += (i === outcomeIndex ? 1 : 0);
@@ -210,11 +249,7 @@ const Models = (() => {
   }
 
   /* ----------------------------- utilidades ------------------------------ */
-  function factorial(k) {
-    let r = 1;
-    for (let i = 2; i <= k; i++) r *= i;
-    return r;
-  }
+  function factorial(k) { let r = 1; for (let i = 2; i <= k; i++) r *= i; return r; }
   function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
 
   return {
@@ -224,7 +259,7 @@ const Models = (() => {
     scoreMatrix, marketsFromMatrix, analyzeMatch,
     impliedProb, removeMargin,
     valueBet, blend,
-    brierScore, rps,
+    brierScore, brierBinary, logLossBinary, rps,
     clamp,
   };
 })();
