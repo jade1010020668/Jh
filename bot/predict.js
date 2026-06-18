@@ -5,13 +5,16 @@
  *  Pensada para correr en GitHub Actions cada ~15 min. En cada ejecución:
  *    1. Lee el calendario (bot/fixtures.json) y el estado (bot/sent.json).
  *    2. Busca partidos que arrancan dentro de la ventana objetivo (~1 h).
- *    3. Calcula el marcador probable con el MISMO motor de la web (models.js).
+ *    3. Calcula el marcador (HÍBRIDO): base matemática de la web (models.js)
+ *       + ajuste de Opus 4.8 con búsqueda web por LESIONES y SUSPENSIONES.
  *    4. Envía el aviso por WhatsApp con CallMeBot.
  *    5. Marca el partido como avisado para no repetirlo.
  *
  *  Variables de entorno:
  *    CALLMEBOT_PHONE   tu número con prefijo de país (p. ej. 521556...)
  *    CALLMEBOT_APIKEY  tu apikey de CallMeBot
+ *    ANTHROPIC_API_KEY tu clave de la API de Anthropic (opcional: sin ella, la
+ *                      rutina usa solo el modelo matemático determinista)
  *    LEAD_MINUTES      minutos antes del partido para avisar (def. 60)
  *    WINDOW_MINUTES    ancho de la ventana de disparo (def. 20 -> [50,70])
  *    TEST_MODE=1       envía un mensaje de prueba con el próximo partido
@@ -22,6 +25,7 @@ const fs = require("fs");
 const path = require("path");
 const Models = require("../js/models.js");
 const { TEAMS, HOST_TEAMS } = require("../js/data.js");
+const { adjustForInjuries } = require("./llm-adjust.js");
 
 const FIX = path.join(__dirname, "fixtures.json");
 const SENT = path.join(__dirname, "sent.json");
@@ -40,22 +44,51 @@ function eloOf(name) {
   return ELO[name];
 }
 
-/** Predicción del partido (Elo -> Poisson/Dixon-Coles). */
-function predict(home, away) {
+/** Ventaja de localía (solo para selecciones anfitrionas en su país). */
+function optsFor(home, away) {
   const opts = {};
   if (isHost(home) && !isHost(away)) opts.homeAdv = Models.DEFAULTS.homeAdvantageElo;
   else if (isHost(away) && !isHost(home)) opts.homeAdv = -Models.DEFAULTS.homeAdvantageElo;
-  return Models.analyzeMatch(eloOf(home), eloOf(away), opts);
+  return opts;
+}
+
+/**
+ *  Análisis HÍBRIDO de un partido:
+ *    1) Base matemática: Elo -> goles esperados (λ) -> Poisson/Dixon-Coles.
+ *    2) Ajuste de Opus 4.8 (búsqueda web) por LESIONES y SUSPENSIONES, acotado.
+ *    3) Se recalcula la matriz con las λ ajustadas.
+ *  Si no hay clave de Anthropic o falla, se usa solo el paso (1) (determinista).
+ *  Devuelve { r (mercados + λ), adj (info del ajuste) }.
+ */
+async function analyze(fx) {
+  const { home, away } = fx;
+  const opts = optsFor(home, away);
+  const eg = Models.expectedGoals(eloOf(home), eloOf(away), opts);
+  let lambdaHome = eg.lambdaHome, lambdaAway = eg.lambdaAway;
+
+  let adj = { used: false, homeAdjPct: 0, awayAdjPct: 0, note: "" };
+  try {
+    adj = await adjustForInjuries({ home, away, kickoffISO: fx.kickoff });
+  } catch (e) {
+    console.error("Aviso: el ajuste de Opus 4.8 falló; uso solo el modelo matemático:", e.message);
+  }
+  if (adj.used) {
+    lambdaHome = Models.clamp(lambdaHome * (1 + adj.homeAdjPct / 100), 0.05, 9);
+    lambdaAway = Models.clamp(lambdaAway * (1 + adj.awayAdjPct / 100), 0.05, 9);
+  }
+  const matrix = Models.scoreMatrix(lambdaHome, lambdaAway, opts);
+  const markets = Models.marketsFromMatrix(matrix);
+  return { r: { ...markets, lambdaHome, lambdaAway }, adj };
 }
 
 const fmt = p => (p * 100).toFixed(0) + "%";
 
-function buildMessage(fx, r) {
+function buildMessage(fx, r, adj) {
   const top = r.topScores[0];
   const ko = new Date(fx.kickoff);
   const koStr = isNaN(ko) ? "" : `(${ko.toISOString().slice(11, 16)} UTC)`;
   const others = r.topScores.slice(1, 4).map(s => `${s.h}-${s.a}`).join(", ");
-  return [
+  const lines = [
     `⚽ MUNDIAL 2026 — falta ~1 hora ${koStr}`,
     `${fx.home} vs ${fx.away}`,
     ``,
@@ -63,9 +96,13 @@ function buildMessage(fx, r) {
     `📊 ${fx.home}: ${fmt(r.pHome)} · Empate: ${fmt(r.pDraw)} · ${fx.away}: ${fmt(r.pAway)}`,
     `⚽ +2.5 goles: ${fmt(r.over25)} · Ambos marcan: ${fmt(r.btts)}`,
     `🎲 Otros marcadores: ${others}`,
-    ``,
-    `⚠️ Es una ESTIMACIÓN probabilística, no una certeza. Apuesta con responsabilidad. +18`,
-  ].join("\n");
+  ];
+  if (adj && adj.used) lines.push(`🩹 Bajas: ${adj.note || "sin bajas relevantes"}`);
+  lines.push(``);
+  lines.push(adj && adj.used
+    ? `⚠️ Estimación probabilística (base Elo/Poisson + Opus 4.8 por lesiones), no una certeza. Apuesta con responsabilidad. +18`
+    : `⚠️ Es una ESTIMACIÓN probabilística, no una certeza. Apuesta con responsabilidad. +18`);
+  return lines.join("\n");
 }
 
 async function sendWhatsApp(text) {
@@ -92,7 +129,8 @@ async function sendWhatsApp(text) {
       .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))[0];
     const fx = upcoming || { home: "Argentina", away: "Brasil",
       kickoff: new Date(now + 3600e3).toISOString() };
-    const msg = "🧪 PRUEBA DE LA RUTINA\n" + buildMessage(fx, predict(fx.home, fx.away));
+    const { r, adj } = await analyze(fx);
+    const msg = "🧪 PRUEBA DE LA RUTINA\n" + buildMessage(fx, r, adj);
     console.log(msg);
     if (!DRY) console.log("Respuesta CallMeBot:", await sendWhatsApp(msg));
     else console.log("\n(DRY_RUN: no se envió. Define CALLMEBOT_PHONE/APIKEY para enviar.)");
@@ -109,7 +147,8 @@ async function sendWhatsApp(text) {
     if (sentSet.has(id)) continue;
     const mins = (t - now) / 60000;
     if (mins < lo || mins > hi) continue;            // fuera de la ventana
-    const msg = buildMessage(fx, predict(fx.home, fx.away));
+    const { r, adj } = await analyze(fx);
+    const msg = buildMessage(fx, r, adj);
     console.log(`→ ${id}  (${mins.toFixed(0)} min)\n${msg}\n`);
     if (!DRY) await sendWhatsApp(msg);
     sentSet.add(id);

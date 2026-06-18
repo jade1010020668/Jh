@@ -65,6 +65,33 @@ real), porque el producto de las λ se mantiene y la suma crece con el desajuste
 
 ---
 
+## Paso 3.5 — 🩹 Ajuste por LESIONES y SUSPENSIONES (Opus 4.8 + búsqueda web)
+Aquí entra la parte **híbrida**. La base matemática (pasos 1-3) solo "ve" la
+fuerza histórica (Elo). Para meter lo que pasa **hoy**, **Opus 4.8** busca en la
+web las **bajas confirmadas** (lesionados y sancionados) de ambas selecciones
+para ESTE partido, y devuelve un **ajuste acotado** a los goles esperados de
+cada equipo, con un procedimiento fijo (mismo prompt, misma lista de factores).
+
+```
+λ_local  ← λ_local  × (1 + ajuste_local%/100)
+λ_visita ← λ_visita × (1 + ajuste_visita%/100)        con cada ajuste ∈ [−25%, +25%]
+```
+
+- Si falta una estrella o varios titulares de un equipo → su λ **baja**.
+- Un rival muy debilitado puede subir **ligeramente** la λ del otro.
+- Si no hay bajas claras o la info no es fiable → **ajuste 0**.
+- El tope de **±25 %** es a propósito: **la base matemática sigue mandando**;
+  el LLM solo "empuja". Por eso el análisis es **casi siempre igual** (mismo
+  método), aunque los números se actualicen con las noticias del día.
+
+> Sin `ANTHROPIC_API_KEY` (o si la red falla), este paso se **omite** y se usa
+> solo el modelo matemático determinista. La rutina nunca se rompe por esto.
+
+*(En el ejemplo Argentina–Brasil seguimos sin ajuste para que los números de
+abajo coincidan con el modelo base.)*
+
+---
+
 ## Paso 4 — Probabilidad de cada cantidad de goles (Poisson)
 Los goles de un equipo siguen una **distribución de Poisson** con su λ. Es decir,
 calculamos la probabilidad de que cada equipo marque 0, 1, 2, 3… goles:
@@ -134,16 +161,19 @@ si quieres, puedo añadir el cálculo de valor también al mensaje.)*
 Con todo lo anterior, el WhatsApp que recibes 1 hora antes es:
 
 ```
-⚽ MUNDIAL 2026 — falta ~1 hora
+⚽ MUNDIAL 2026 — falta ~1 hora (21:00 UTC)
 Argentina vs Brasil
 
 🔮 Marcador más probable: 1-1 (12%)
 📊 Argentina: 50% · Empate: 26% · Brasil: 24%
 ⚽ +2.5 goles: 51% · Ambos marcan: 54%
 🎲 Otros marcadores: 1-0, 2-1, 2-0
-
-⚠️ Es una ESTIMACIÓN probabilística, no una certeza. +18
+🩹 Bajas: sin lesiones/sanciones relevantes en ambos equipos
+⚠️ Estimación probabilística (base Elo/Poisson + Opus 4.8 por lesiones). +18
 ```
+
+La línea **🩹 Bajas** solo aparece cuando el ajuste de Opus 4.8 está activo
+(hay `ANTHROPIC_API_KEY`); si no, el mensaje muestra solo el modelo matemático.
 
 ---
 
@@ -151,6 +181,7 @@ Argentina vs Brasil
 
 ```
 Equipos → Elo → (+localía) → λ goles esperados (log-lineal)
+       → 🩹 AJUSTE Opus 4.8 por lesiones/suspensiones (web, acotado ±25%)
        → Poisson por equipo → Dixon-Coles → MATRIZ de marcadores
        → marcador más probable + 1X2 + Over/Under + Ambos marcan
        → (opcional) valor con Shin + Kelly
@@ -163,5 +194,9 @@ Equipos → Elo → (+localía) → λ goles esperados (log-lineal)
 - La calidad depende de los **Elo** (edítalos en `js/data.js` para afinar).
 - Limitación conocida: un solo Elo **mezcla ataque y defensa**; un modelo ideal
   los separaría, pero exige más datos. Aquí prima la robustez y que tú ajustes.
+- El **ajuste por lesiones (Opus 4.8)** es tan bueno como la información pública
+  que encuentre, y es **acotado a ±25 %** para no sobrerreaccionar. No es
+  determinista al 100 % (depende de noticias en vivo), pero sigue **siempre el
+  mismo procedimiento**: por eso el método es estable aunque los datos cambien.
 - Esto **no garantiza ganar dinero**. Es análisis, no una bola de cristal.
 ```

@@ -12,7 +12,8 @@ Mundial 2026 **una hora antes** de que empiece. Corre sola en **GitHub Actions**
 ## Cómo funciona
 
 ```
-bot/predict.js       Calcula el marcador (mismo motor que la web) y envía el aviso
+bot/predict.js       Orquesta el aviso: análisis híbrido + envío por WhatsApp
+bot/llm-adjust.js    Capa Opus 4.8 + búsqueda web: ajuste por LESIONES/SUSPENSIONES
 bot/fixtures.json    Calendario: 72 partidos de grupos (rellena tú las horas)
 bot/sent.json        Estado interno para no enviar el mismo aviso dos veces
 bot/gen-fixtures.js  Regenera los cruces de grupos (conserva las horas que pusiste)
@@ -22,6 +23,19 @@ bot/gen-fixtures.js  Regenera los cruces de grupos (conserva las horas que pusis
 Cada 15 min el cron mira `fixtures.json`; si un partido arranca dentro de la
 ventana (~50–70 min), calcula la predicción y te la manda. Luego lo marca en
 `sent.json` para no repetir.
+
+### Análisis HÍBRIDO (math + Opus 4.8)
+1. **Base matemática** (la misma de la web, `js/models.js`): Elo → goles
+   esperados → Poisson/Dixon-Coles → marcador y mercados. Es **determinista**:
+   con los mismos datos da siempre lo mismo.
+2. **Ajuste de Opus 4.8** (`bot/llm-adjust.js`): busca en la web las **lesiones
+   y suspensiones** confirmadas de ambos equipos y aplica un ajuste **acotado a
+   ±25 %** a los goles esperados de cada selección. La base matemática sigue
+   mandando; el modelo solo "empuja" por las bajas, con un procedimiento fijo.
+3. Si **no** defines `ANTHROPIC_API_KEY` (o algo falla), la rutina usa **solo el
+   paso 1** y nunca se rompe.
+
+> Detalle paso a paso del análisis: **`bot/COMO-ANALIZA-EL-PARTIDO.md`**.
 
 ---
 
@@ -40,6 +54,12 @@ En tu repo → **Settings → Secrets and variables → Actions → New reposito
 |---|---|
 | `CALLMEBOT_PHONE` | Tu número con prefijo de país, sin `+` (p. ej. `521556...` para México) |
 | `CALLMEBOT_APIKEY` | La apikey que te dio CallMeBot |
+| `ANTHROPIC_API_KEY` | *(Opcional, recomendado)* Tu clave de la API de Anthropic, para el ajuste por lesiones con Opus 4.8. Sin ella, la rutina usa solo el modelo matemático. Consíguela en <https://console.anthropic.com> → API Keys. |
+
+> 💸 **Coste**: el ajuste con Opus 4.8 + búsqueda web gasta unos **céntimos por
+> partido** de tu cuenta de Anthropic. Como solo se llama 1 vez por partido
+> (1 h antes), el gasto del Mundial es pequeño. Si no quieres coste alguno, no
+> pongas el secret y tendrás el modelo matemático (gratis).
 
 ### 3) Rellena las horas en `bot/fixtures.json`
 Cada partido necesita su `kickoff` en formato **ISO 8601**. Puedes usar UTC (`Z`)
@@ -67,8 +87,12 @@ Los cron de GitHub Actions **solo corren desde la rama `main`**. Fusiona el PR a
   próximo partido.
 - **En tu PC (sin enviar nada):**
   ```bash
+  npm install                                   # instala el SDK (una vez)
   DRY_RUN=1 TEST_MODE=1 node bot/predict.js     # muestra un mensaje de ejemplo
   ```
+  Sin `ANTHROPIC_API_KEY` verás solo el modelo matemático. Para probar el
+  ajuste por lesiones, añade `ANTHROPIC_API_KEY=sk-ant-...` delante del comando
+  (¡ojo: eso sí gasta unos céntimos, aunque sea DRY_RUN!).
 - **En tu PC (enviando de verdad):**
   ```bash
   CALLMEBOT_PHONE=521556... CALLMEBOT_APIKEY=tuclave TEST_MODE=1 node bot/predict.js
@@ -79,11 +103,16 @@ Los cron de GitHub Actions **solo corren desde la rama `main`**. Fusiona el PR a
 ## Ajustes
 - `LEAD_MINUTES` (def. 60): minutos antes del partido para avisar.
 - `WINDOW_MINUTES` (def. 20): ancho de la ventana de disparo.
-- Los **ratings Elo** y la predicción salen de `js/data.js` + `js/models.js`
-  (la misma fuente que la web). Edita los Elo ahí si quieres afinar.
+- Los **ratings Elo** y la base de la predicción salen de `js/data.js` +
+  `js/models.js` (la misma fuente que la web). Edita los Elo ahí para afinar.
+- El **ajuste por lesiones** (modelo, tope de ±25 %, procedimiento) vive en
+  `bot/llm-adjust.js`.
 
 ## Límites honestos
 - CallMeBot es gratuito y **no oficial**: puede tener límites o caerse; es ideal
   para enviarte mensajes a ti mismo, no para difusión masiva.
 - El cron no es exacto al minuto (de ahí la ventana de 20 min).
 - Si cambian horarios de partidos, actualiza `fixtures.json`.
+- El ajuste de Opus 4.8 depende de que **haya información pública** de las bajas
+  y de la red; es **acotado a propósito** (±25 %) para no sobrerreaccionar.
+  No garantiza acertar: sigue siendo una estimación.
