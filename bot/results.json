@@ -2,8 +2,8 @@
   {
     "home": "México",
     "away": "Sudáfrica",
-    "date": "2026-06-11",
-    "stage": "Grupo A",
+    "date": "2026-06",
+    "stage": "Grupo A · J1",
     "pred": {
       "pHome": 0.51,
       "pDraw": 0.257,
@@ -18,13 +18,13 @@
       "homeGoals": 2,
       "awayGoals": 0
     },
-    "source": "https://www.cnn.com/2026/06/11/sport/live-news/world-cup-mexico-south-africa"
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
   },
   {
     "home": "Corea del Sur",
     "away": "Chequia",
-    "date": "2026-06-11",
-    "stage": "Grupo A",
+    "date": "2026-06",
+    "stage": "Grupo A · J1",
     "pred": {
       "pHome": 0.357,
       "pDraw": 0.276,
@@ -39,6 +39,468 @@
       "homeGoals": 2,
       "awayGoals": 1
     },
-    "source": "https://www.aljazeera.com/sports/2026/6/11/south-korea-vs-czechia-world-cup-group-match-teams-start-and-lineups"
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Canadá",
+    "away": "Bosnia y Herz.",
+    "date": "2026-06",
+    "stage": "Grupo B · J1",
+    "pred": {
+      "pHome": 0.476,
+      "pDraw": 0.264,
+      "pAway": 0.259,
+      "over25": 0.504,
+      "btts": 0.54,
+      "topScore": "1-1",
+      "lambdaHome": 1.584,
+      "lambdaAway": 1.108
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Suiza",
+    "away": "Catar",
+    "date": "2026-06",
+    "stage": "Grupo B · J1",
+    "pred": {
+      "pHome": 0.561,
+      "pDraw": 0.243,
+      "pAway": 0.196,
+      "over25": 0.525,
+      "btts": 0.527,
+      "topScore": "1-1",
+      "lambdaHome": 1.799,
+      "lambdaAway": 0.976
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Brasil",
+    "away": "Marruecos",
+    "date": "2026-06",
+    "stage": "Grupo C · J1",
+    "pred": {
+      "pHome": 0.373,
+      "pDraw": 0.276,
+      "pAway": 0.352,
+      "over25": 0.494,
+      "btts": 0.546,
+      "topScore": "1-1",
+      "lambdaHome": 1.348,
+      "lambdaAway": 1.303
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Escocia",
+    "away": "Haití",
+    "date": "2026-06",
+    "stage": "Grupo C · J1",
+    "pred": {
+      "pHome": 0.555,
+      "pDraw": 0.245,
+      "pAway": 0.2,
+      "over25": 0.523,
+      "btts": 0.528,
+      "topScore": "1-1",
+      "lambdaHome": 1.784,
+      "lambdaAway": 0.984
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 0
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Estados Unidos",
+    "away": "Paraguay",
+    "date": "2026-06",
+    "stage": "Grupo D · J1",
+    "pred": {
+      "pHome": 0.499,
+      "pDraw": 0.26,
+      "pAway": 0.241,
+      "over25": 0.509,
+      "btts": 0.537,
+      "topScore": "1-1",
+      "lambdaHome": 1.639,
+      "lambdaAway": 1.071
+    },
+    "actual": {
+      "homeGoals": 4,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Australia",
+    "away": "Türkiye",
+    "date": "2026-06",
+    "stage": "Grupo D · J1",
+    "pred": {
+      "pHome": 0.301,
+      "pDraw": 0.272,
+      "pAway": 0.427,
+      "over25": 0.497,
+      "btts": 0.544,
+      "topScore": "1-1",
+      "lambdaHome": 1.197,
+      "lambdaAway": 1.467
+    },
+    "actual": {
+      "homeGoals": 2,
+      "awayGoals": 0
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Alemania",
+    "away": "Curazao",
+    "date": "2026-06",
+    "stage": "Grupo E · J1",
+    "pred": {
+      "pHome": 0.725,
+      "pDraw": 0.177,
+      "pAway": 0.097,
+      "over25": 0.597,
+      "btts": 0.482,
+      "topScore": "2-0",
+      "lambdaHome": 2.342,
+      "lambdaAway": 0.75
+    },
+    "actual": {
+      "homeGoals": 7,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Costa de Marfil",
+    "away": "Ecuador",
+    "date": "2026-06",
+    "stage": "Grupo E · J1",
+    "pred": {
+      "pHome": 0.336,
+      "pDraw": 0.275,
+      "pAway": 0.389,
+      "over25": 0.495,
+      "btts": 0.546,
+      "topScore": "1-1",
+      "lambdaHome": 1.27,
+      "lambdaAway": 1.383
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 0
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Países Bajos",
+    "away": "Japón",
+    "date": "2026-06",
+    "stage": "Grupo F · J1",
+    "pred": {
+      "pHome": 0.476,
+      "pDraw": 0.264,
+      "pAway": 0.259,
+      "over25": 0.504,
+      "btts": 0.54,
+      "topScore": "1-1",
+      "lambdaHome": 1.584,
+      "lambdaAway": 1.108
+    },
+    "actual": {
+      "homeGoals": 2,
+      "awayGoals": 2
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Suecia",
+    "away": "Túnez",
+    "date": "2026-06",
+    "stage": "Grupo F · J1",
+    "pred": {
+      "pHome": 0.416,
+      "pDraw": 0.273,
+      "pAway": 0.311,
+      "over25": 0.496,
+      "btts": 0.545,
+      "topScore": "1-1",
+      "lambdaHome": 1.443,
+      "lambdaAway": 1.217
+    },
+    "actual": {
+      "homeGoals": 5,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Bélgica",
+    "away": "Egipto",
+    "date": "2026-06",
+    "stage": "Grupo G · J1",
+    "pred": {
+      "pHome": 0.505,
+      "pDraw": 0.259,
+      "pAway": 0.237,
+      "over25": 0.51,
+      "btts": 0.536,
+      "topScore": "1-1",
+      "lambdaHome": 1.653,
+      "lambdaAway": 1.062
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Irán",
+    "away": "Nueva Zelanda",
+    "date": "2026-06",
+    "stage": "Grupo G · J1",
+    "pred": {
+      "pHome": 0.549,
+      "pDraw": 0.247,
+      "pAway": 0.204,
+      "over25": 0.521,
+      "btts": 0.529,
+      "topScore": "1-1",
+      "lambdaHome": 1.769,
+      "lambdaAway": 0.992
+    },
+    "actual": {
+      "homeGoals": 2,
+      "awayGoals": 2
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "España",
+    "away": "Cabo Verde",
+    "date": "2026-06",
+    "stage": "Grupo H · J1",
+    "pred": {
+      "pHome": 0.726,
+      "pDraw": 0.177,
+      "pAway": 0.097,
+      "over25": 0.598,
+      "btts": 0.481,
+      "topScore": "2-0",
+      "lambdaHome": 2.346,
+      "lambdaAway": 0.748
+    },
+    "actual": {
+      "homeGoals": 0,
+      "awayGoals": 0
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Arabia Saudita",
+    "away": "Uruguay",
+    "date": "2026-06",
+    "stage": "Grupo H · J1",
+    "pred": {
+      "pHome": 0.181,
+      "pDraw": 0.236,
+      "pAway": 0.583,
+      "over25": 0.532,
+      "btts": 0.522,
+      "topScore": "1-1",
+      "lambdaHome": 0.943,
+      "lambdaAway": 1.862
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Francia",
+    "away": "Senegal",
+    "date": "2026-06",
+    "stage": "Grupo I · J1",
+    "pred": {
+      "pHome": 0.535,
+      "pDraw": 0.251,
+      "pAway": 0.214,
+      "over25": 0.517,
+      "btts": 0.531,
+      "topScore": "1-1",
+      "lambdaHome": 1.73,
+      "lambdaAway": 1.015
+    },
+    "actual": {
+      "homeGoals": 3,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Noruega",
+    "away": "Irak",
+    "date": "2026-06",
+    "stage": "Grupo I · J1",
+    "pred": {
+      "pHome": 0.572,
+      "pDraw": 0.24,
+      "pAway": 0.188,
+      "over25": 0.528,
+      "btts": 0.524,
+      "topScore": "1-1",
+      "lambdaHome": 1.83,
+      "lambdaAway": 0.959
+    },
+    "actual": {
+      "homeGoals": 4,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Argentina",
+    "away": "Argelia",
+    "date": "2026-06",
+    "stage": "Grupo J · J1",
+    "pred": {
+      "pHome": 0.594,
+      "pDraw": 0.233,
+      "pAway": 0.173,
+      "over25": 0.535,
+      "btts": 0.52,
+      "topScore": "1-1",
+      "lambdaHome": 1.893,
+      "lambdaAway": 0.927
+    },
+    "actual": {
+      "homeGoals": 3,
+      "awayGoals": 0
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Austria",
+    "away": "Jordania",
+    "date": "2026-06",
+    "stage": "Grupo J · J1",
+    "pred": {
+      "pHome": 0.561,
+      "pDraw": 0.243,
+      "pAway": 0.196,
+      "over25": 0.525,
+      "btts": 0.527,
+      "topScore": "1-1",
+      "lambdaHome": 1.799,
+      "lambdaAway": 0.976
+    },
+    "actual": {
+      "homeGoals": 3,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Portugal",
+    "away": "RD del Congo",
+    "date": "2026-06",
+    "stage": "Grupo K · J1",
+    "pred": {
+      "pHome": 0.51,
+      "pDraw": 0.257,
+      "pAway": 0.233,
+      "over25": 0.511,
+      "btts": 0.535,
+      "topScore": "1-1",
+      "lambdaHome": 1.667,
+      "lambdaAway": 1.053
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Colombia",
+    "away": "Uzbekistán",
+    "date": "2026-06",
+    "stage": "Grupo K · J1",
+    "pred": {
+      "pHome": 0.572,
+      "pDraw": 0.24,
+      "pAway": 0.188,
+      "over25": 0.528,
+      "btts": 0.524,
+      "topScore": "1-1",
+      "lambdaHome": 1.83,
+      "lambdaAway": 0.959
+    },
+    "actual": {
+      "homeGoals": 3,
+      "awayGoals": 1
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Inglaterra",
+    "away": "Croacia",
+    "date": "2026-06",
+    "stage": "Grupo L · J1",
+    "pred": {
+      "pHome": 0.423,
+      "pDraw": 0.272,
+      "pAway": 0.304,
+      "over25": 0.497,
+      "btts": 0.544,
+      "topScore": "1-1",
+      "lambdaHome": 1.46,
+      "lambdaAway": 1.203
+    },
+    "actual": {
+      "homeGoals": 4,
+      "awayGoals": 2
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
+  },
+  {
+    "home": "Ghana",
+    "away": "Panamá",
+    "date": "2026-06",
+    "stage": "Grupo L · J1",
+    "pred": {
+      "pHome": 0.449,
+      "pDraw": 0.269,
+      "pAway": 0.282,
+      "over25": 0.5,
+      "btts": 0.542,
+      "topScore": "1-1",
+      "lambdaHome": 1.518,
+      "lambdaAway": 1.157
+    },
+    "actual": {
+      "homeGoals": 1,
+      "awayGoals": 0
+    },
+    "source": "https://www.nbcsports.com/soccer/news/2026-world-cup-group-stage-table-full-standings-for-all-12-groups"
   }
 ]
