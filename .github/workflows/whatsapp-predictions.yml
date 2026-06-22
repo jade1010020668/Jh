@@ -1,0 +1,59 @@
+name: Avisos WhatsApp del Mundial 2026
+
+# Corre cada 15 minutos y avisa ~1 hora antes de cada partido.
+# NOTA: los cron de GitHub Actions solo se ejecutan desde la rama por defecto
+# (main). Para activarlo, fusiona este PR a main. La hora del cron puede
+# retrasarse algunos minutos bajo carga: por eso la ventana es de 20 min.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "Enviar un mensaje de PRUEBA (próximo partido)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wc2026-whatsapp
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias (SDK de Anthropic para el ajuste multifactor)
+        run: npm install --no-audit --no-fund
+
+      - name: Calcular y enviar avisos
+        env:
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LEAD_MINUTES: "60"
+          WINDOW_MINUTES: "20"
+          TEST_MODE: ${{ (github.event_name == 'workflow_dispatch' && inputs.test) && '1' || '' }}
+        run: node bot/predict.js
+
+      - name: Guardar estado (avisos enviados + predicciones para el backtest)
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          if ! git diff --quiet -- bot/sent.json bot/results.json; then
+            git config user.name "wc2026-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add bot/sent.json bot/results.json
+            git commit -m "chore(bot): avisos enviados + predicciones guardadas [skip ci]"
+            git push
+          else
+            echo "Sin cambios que guardar"
+          fi

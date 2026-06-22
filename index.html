@@ -3,262 +3,250 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora Online</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-      font-family: 'Segoe UI', sans-serif;
-    }
-
-    .calculator {
-      background: #1e1e2e;
-      border-radius: 24px;
-      padding: 24px;
-      width: 320px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05);
-    }
-
-    .display {
-      background: #0d0d1a;
-      border-radius: 16px;
-      padding: 20px 16px 12px;
-      margin-bottom: 20px;
-      min-height: 100px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      justify-content: flex-end;
-      overflow: hidden;
-    }
-
-    .expression {
-      font-size: 14px;
-      color: #6b6b8a;
-      min-height: 20px;
-      word-break: break-all;
-      text-align: right;
-    }
-
-    .result {
-      font-size: 42px;
-      font-weight: 300;
-      color: #e8e8f0;
-      word-break: break-all;
-      text-align: right;
-      line-height: 1.1;
-      transition: font-size 0.2s;
-    }
-
-    .result.small {
-      font-size: 28px;
-    }
-
-    .buttons {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-
-    button {
-      border: none;
-      border-radius: 14px;
-      font-size: 18px;
-      font-weight: 500;
-      height: 64px;
-      cursor: pointer;
-      transition: transform 0.1s, opacity 0.1s, background 0.15s;
-      outline: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    button:active {
-      transform: scale(0.93);
-      opacity: 0.85;
-    }
-
-    /* Utility keys */
-    .btn-util {
-      background: #2e2e4e;
-      color: #a0a0c0;
-    }
-
-    .btn-util:hover {
-      background: #3a3a5e;
-    }
-
-    /* Operator keys */
-    .btn-op {
-      background: #e94560;
-      color: #fff;
-    }
-
-    .btn-op:hover {
-      background: #ff5a75;
-    }
-
-    /* Number keys */
-    .btn-num {
-      background: #252540;
-      color: #e8e8f0;
-    }
-
-    .btn-num:hover {
-      background: #30305a;
-    }
-
-    /* Equals key */
-    .btn-eq {
-      background: linear-gradient(135deg, #e94560, #c23152);
-      color: #fff;
-      font-size: 24px;
-    }
-
-    .btn-eq:hover {
-      background: linear-gradient(135deg, #ff5a75, #e94560);
-    }
-
-    /* Zero key spans 2 columns */
-    .span-2 {
-      grid-column: span 2;
-    }
-  </style>
+  <title>Predictor Mundial 2026 · Análisis probabilístico</title>
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div class="calculator">
-    <div class="display">
-      <div class="expression" id="expression"></div>
-      <div class="result" id="result">0</div>
+  <div class="wrap">
+
+    <header>
+      <h1><span class="ball">⚽</span> Predictor Mundial 2026</h1>
+      <p class="sub">Análisis probabilístico con Elo · Poisson · Dixon-Coles · Montecarlo · Valor (Kelly)</p>
+    </header>
+
+    <!-- AVISO DE JUEGO RESPONSABLE -->
+    <div class="disclaimer">
+      <b>⚠️ Léelo antes de usar.</b> Ninguna herramienta predice partidos con
+      100 % de acierto: el fútbol tiene una varianza enorme (la "suerte"). Esto
+      <b>no garantiza ganancias</b> ni es asesoría financiera. Las casas de
+      apuestas tienen ventaja matemática por su margen. Apuesta solo lo que
+      puedas permitirte perder. Si el juego deja de ser un entretenimiento,
+      busca ayuda (en España, <b>JugarBien.es</b> / 900&nbsp;200&nbsp;225).
     </div>
-    <div class="buttons">
-      <!-- Row 1 -->
-      <button class="btn-util" onclick="clearAll()">AC</button>
-      <button class="btn-util" onclick="toggleSign()">+/−</button>
-      <button class="btn-util" onclick="percent()">%</button>
-      <button class="btn-op"   onclick="inputOp('/')">÷</button>
 
-      <!-- Row 2 -->
-      <button class="btn-num" onclick="inputNum('7')">7</button>
-      <button class="btn-num" onclick="inputNum('8')">8</button>
-      <button class="btn-num" onclick="inputNum('9')">9</button>
-      <button class="btn-op"  onclick="inputOp('*')">×</button>
-
-      <!-- Row 3 -->
-      <button class="btn-num" onclick="inputNum('4')">4</button>
-      <button class="btn-num" onclick="inputNum('5')">5</button>
-      <button class="btn-num" onclick="inputNum('6')">6</button>
-      <button class="btn-op"  onclick="inputOp('-')">−</button>
-
-      <!-- Row 4 -->
-      <button class="btn-num" onclick="inputNum('1')">1</button>
-      <button class="btn-num" onclick="inputNum('2')">2</button>
-      <button class="btn-num" onclick="inputNum('3')">3</button>
-      <button class="btn-op"  onclick="inputOp('+')">+</button>
-
-      <!-- Row 5 -->
-      <button class="btn-num span-2" onclick="inputNum('0')">0</button>
-      <button class="btn-num" onclick="inputDot()">.</button>
-      <button class="btn-eq" onclick="calculate()">=</button>
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab-btn active" data-target="tab-match">🎯 Analizar partido</button>
+      <button class="tab-btn" data-target="tab-sim">🏆 Simular Mundial</button>
+      <button class="tab-btn" data-target="tab-ratings">📊 Ratings Elo</button>
+      <button class="tab-btn" data-target="tab-method">📐 Metodología</button>
     </div>
+
+    <!-- ====================== ANALIZAR PARTIDO ====================== -->
+    <section id="tab-match" class="tab-panel active">
+      <div class="card">
+        <h2>🎯 Análisis de un partido</h2>
+        <div class="selectors">
+          <select id="sel-home"></select>
+          <span class="mid">VS</span>
+          <select id="sel-away"></select>
+        </div>
+        <label class="inline">
+          <input type="checkbox" id="chk-homeadv" />
+          Aplicar ventaja de localía al primer equipo (p. ej. juega en su país)
+        </label>
+
+        <details class="params-box">
+          <summary>⚙️ Parámetros avanzados del modelo</summary>
+          <div class="params">
+            <label>Sensibilidad Elo→goles
+              <input type="number" id="p-eloStrength" value="0.0017" step="0.0001" /></label>
+            <label>Goles totales base
+              <input type="number" id="p-baseGoals" value="2.65" step="0.05" /></label>
+            <label>ρ Dixon-Coles
+              <input type="number" id="p-rho" value="-0.05" step="0.01" /></label>
+            <label>Localía (Elo)
+              <input type="number" id="p-homeAdv" value="45" step="5" /></label>
+          </div>
+        </details>
+
+        <div id="match-summary" style="margin-top:16px"></div>
+        <div id="match-markets"></div>
+      </div>
+
+      <div class="card">
+        <h2>💰 Detección de valor + Criterio de Kelly</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:8px">
+          Introduce las <b>cuotas decimales</b> de tu casa de apuestas. La
+          herramienta calcula la probabilidad combinando tu modelo con el
+          mercado, y solo marca <b>VALOR (+EV)</b> cuando la cuota paga más de
+          lo justo. El "stake" es la fracción de Kelly recomendada de tu banca.
+        </p>
+
+        <div class="bet-cfg">
+          <label>Banca ($)
+            <input type="number" id="f-bankroll" value="100" step="10" /></label>
+          <label>Fracción de Kelly (0–1)
+            <input type="number" id="f-kelly" value="0.25" step="0.05" min="0" max="1" /></label>
+          <label>Confianza en el mercado (0–1)
+            <input type="number" id="f-trust" value="0.4" step="0.05" min="0" max="1" /></label>
+        </div>
+
+        <h3>Cuotas de la casa (decimales)</h3>
+        <div class="odds-inputs">
+          <label>1 (Local)<input type="number" id="odd-1" step="0.01" placeholder="2.10" /></label>
+          <label>X (Empate)<input type="number" id="odd-x" step="0.01" placeholder="3.30" /></label>
+          <label>2 (Visitante)<input type="number" id="odd-2" step="0.01" placeholder="3.50" /></label>
+          <label>Más 2.5<input type="number" id="odd-over" step="0.01" placeholder="1.90" /></label>
+          <label>Menos 2.5<input type="number" id="odd-under" step="0.01" placeholder="1.90" /></label>
+          <label>Ambos Sí<input type="number" id="odd-btts-y" step="0.01" placeholder="1.80" /></label>
+          <label>Ambos No<input type="number" id="odd-btts-n" step="0.01" placeholder="2.00" /></label>
+        </div>
+
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th class="tleft">Mercado</th><th>Prob. (modelo+mercado)</th>
+              <th>Cuota</th><th>Ventaja (EV)</th><th>Stake Kelly</th><th>¿Valor?</th>
+            </tr></thead>
+            <tbody id="value-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== SIMULAR MUNDIAL ====================== -->
+    <section id="tab-sim" class="tab-panel">
+      <div class="card">
+        <h2>🏆 Simulación de Montecarlo del torneo</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+          Simula el Mundial completo miles de veces (fase de grupos + ronda de
+          32 hasta la final) para estimar la probabilidad de cada selección de
+          avanzar, llegar lejos y ser campeona.
+        </p>
+        <div class="sim-controls">
+          <span style="font-size:13px;color:var(--muted)">Simulaciones:</span>
+          <input type="range" id="sim-n" min="1000" max="50000" step="1000" value="10000" />
+          <b id="sim-n-val">10.000</b>
+          <button class="btn" id="btn-sim">▶ Simular</button>
+        </div>
+
+        <div id="sim-progress-wrap">
+          <div class="progress-track"><div id="sim-bar"></div></div>
+          <div id="sim-progress-txt"></div>
+        </div>
+
+        <div id="sim-results">
+          <div id="sim-fav"></div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr>
+                <th>#</th><th class="tleft">Selección</th><th>Elo</th>
+                <th>Avanza</th><th>Cuartos</th><th>Semis</th><th>Final</th><th>Campeón</th>
+              </tr></thead>
+              <tbody id="sim-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== RATINGS ELO ====================== -->
+    <section id="tab-ratings" class="tab-panel">
+      <div class="card">
+        <h2>📊 Ratings Elo (editables)</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+          Estos valores alimentan todos los modelos. Son aproximaciones
+          ancladas a datos reales de junio 2026 — <b>edítalos</b> con tus
+          propias cifras (eloratings.net, FIFA, tu análisis) para afinar las
+          predicciones. Los cambios se guardan en tu navegador.
+        </p>
+        <button class="btn ghost" id="btn-reset-elo" style="margin-bottom:14px">↺ Restaurar valores por defecto</button>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>#</th><th class="tleft">Selección</th><th>Grupo</th><th>Elo</th></tr></thead>
+            <tbody id="ratings-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================== METODOLOGÍA ====================== -->
+    <section id="tab-method" class="tab-panel">
+      <div class="card method">
+        <h2>📐 Metodología y modelos</h2>
+        <p>Esta herramienta combina los modelos de referencia que usan los
+           analistas serios. Ninguno es magia: producen <b>probabilidades</b>,
+           no certezas.</p>
+
+        <h3>1. Ratings Elo</h3>
+        <p>Miden la fuerza relativa de cada selección. El resultado esperado de
+           A frente a B:</p>
+        <div class="formula">We = 1 / (1 + 10^(−(R_A − R_B) / 400))</div>
+
+        <h3>2. Elo → goles esperados (λ) — modelo log-lineal</h3>
+        <p>Se usa la forma <b>multiplicativa</b> (Maher 1982), el estándar del
+           Poisson de fútbol. Garantiza λ&gt;0 y hace que las goleadas tengan
+           más goles totales (como en la realidad), porque el producto de las
+           λ se mantiene constante y la suma crece con el desajuste:</p>
+        <div class="formula">d = (R_local + localía − R_visita) · sensibilidad
+λ_local = e^(μ + d) · · · λ_visita = e^(μ − d) · · · μ = ln(goles_base / 2)</div>
+        <p style="color:var(--muted);font-size:13px">⚠️ Limitación honesta: un solo
+           número Elo <b>colapsa ataque y defensa</b> en una dimensión. Un modelo
+           ideal estima fuerzas de ataque y defensa por separado, pero eso exige
+           más datos. Aquí prima la robustez y que tú puedas ajustar los ratings.</p>
+
+        <h3>3. Poisson + Dixon-Coles (1997)</h3>
+        <p>Los goles siguen una distribución de Poisson. La corrección de
+           <b>Dixon-Coles</b> ajusta la dependencia en marcadores bajos
+           (0-0, 1-0, 0-1, 1-1), el punto débil del Poisson simple. De la matriz
+           de marcadores salen las probabilidades de 1X2, Over/Under y Ambos Marcan.</p>
+        <div class="formula">P(i,j) = Poisson(i; λ_local) · Poisson(j; λ_visita) · τ(i,j)</div>
+
+        <h3>4. Simulación de Montecarlo</h3>
+        <p>Se simula el torneo completo miles de veces muestreando marcadores de
+           cada partido. Así emerge la <b>incertidumbre</b> real: un favorito
+           claro puede ganar solo el 18–22 % de las veces. Eso es la "suerte"
+           cuantificada.</p>
+
+        <h3>5. Cuotas, margen y valor (+EV)</h3>
+        <p>Una cuota decimal <code>O</code> implica una probabilidad
+           <code>1/O</code>. La suma de las implícitas supera el 100 %: ese
+           exceso es el <b>margen de la casa</b> (su ventaja). Para estimar las
+           probabilidades "justas" se usa el <b>método de Shin (1992)</b>, que
+           corrige el sesgo favorito-perdedor mejor que el reparto proporcional.
+           Apostar tiene sentido matemático solo cuando tu probabilidad estimada
+           <code>p</code> supera la implícita:</p>
+        <div class="formula">Valor esperado (EV) = p · O − 1   →   apuesta de valor si EV &gt; 0</div>
+
+        <h3>6. Criterio de Kelly</h3>
+        <p>Determina cuánto apostar para maximizar el crecimiento a largo plazo
+           sin arruinarte. Se recomienda usar una <b>fracción</b> (¼ de Kelly)
+           para reducir la volatilidad:</p>
+        <div class="formula">f* = (p · O − 1) / (O − 1)</div>
+
+        <h3>7. Calibración (Brier / RPS)</h3>
+        <p>Para saber si un modelo es bueno se mide su calibración con datos
+           reales: el <b>Brier score</b> y el <b>Ranked Probability Score</b>
+           (estándar para 1X2). Cuanto menores, mejor. Están implementados en
+           <code>models.js</code> para evaluar tus predicciones contra resultados.</p>
+
+        <h3>⚠️ La verdad honesta</h3>
+        <ul>
+          <li>El mercado de apuestas ya es muy eficiente; batirlo de forma
+              sostenida es extremadamente difícil.</li>
+          <li>Un buen modelo de 1X2 acierta ~50–55 % de los resultados: muy lejos
+              del "100 %".</li>
+          <li>La ventaja real, si existe, es pequeña y solo se materializa con
+              <b>disciplina, gestión de banca y muchísimas apuestas</b>, no con
+              una sola jugada "segura".</li>
+          <li>Esto es una herramienta de <b>análisis y educación</b>, no una
+              máquina de hacer dinero.</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer>
+      Herramienta de análisis estadístico · Datos: sorteo final FIFA + Elo (jun 2026).
+      &nbsp;|&nbsp; <a href="calculadora.html">Calculadora</a>
+      <br>Juega con responsabilidad. +18.
+    </footer>
   </div>
 
-  <script>
-    let current = '0';
-    let previous = '';
-    let operator = null;
-    let shouldReset = false;
-
-    const resultEl = document.getElementById('result');
-    const exprEl   = document.getElementById('expression');
-
-    function updateDisplay() {
-      resultEl.textContent = current;
-      resultEl.classList.toggle('small', current.length > 9);
-    }
-
-    function inputNum(n) {
-      if (shouldReset) { current = n; shouldReset = false; }
-      else current = current === '0' ? n : current + n;
-      updateDisplay();
-    }
-
-    function inputDot() {
-      if (shouldReset) { current = '0.'; shouldReset = false; updateDisplay(); return; }
-      if (!current.includes('.')) { current += '.'; updateDisplay(); }
-    }
-
-    function inputOp(op) {
-      if (operator && !shouldReset) calculate(true);
-      previous = current;
-      operator = op;
-      shouldReset = true;
-      const sym = { '/': '÷', '*': '×', '-': '−', '+': '+' }[op];
-      exprEl.textContent = `${previous} ${sym}`;
-    }
-
-    function calculate(chaining = false) {
-      if (!operator || !previous) return;
-      const a = parseFloat(previous);
-      const b = parseFloat(current);
-      let res;
-      switch (operator) {
-        case '+': res = a + b; break;
-        case '-': res = a - b; break;
-        case '*': res = a * b; break;
-        case '/': res = b === 0 ? 'Error' : a / b; break;
-      }
-      if (!chaining) {
-        const sym = { '/': '÷', '*': '×', '-': '−', '+': '+' }[operator];
-        exprEl.textContent = `${previous} ${sym} ${current} =`;
-        operator = null;
-        previous = '';
-      }
-      current = res === 'Error' ? 'Error' : String(parseFloat(res.toFixed(10)));
-      shouldReset = true;
-      updateDisplay();
-    }
-
-    function clearAll() {
-      current = '0'; previous = ''; operator = null; shouldReset = false;
-      exprEl.textContent = '';
-      updateDisplay();
-    }
-
-    function toggleSign() {
-      if (current === '0' || current === 'Error') return;
-      current = current.startsWith('-') ? current.slice(1) : '-' + current;
-      updateDisplay();
-    }
-
-    function percent() {
-      if (current === 'Error') return;
-      current = String(parseFloat(current) / 100);
-      updateDisplay();
-    }
-
-    document.addEventListener('keydown', e => {
-      if (e.key >= '0' && e.key <= '9') inputNum(e.key);
-      else if (e.key === '.') inputDot();
-      else if (e.key === '+') inputOp('+');
-      else if (e.key === '-') inputOp('-');
-      else if (e.key === '*') inputOp('*');
-      else if (e.key === '/') { e.preventDefault(); inputOp('/'); }
-      else if (e.key === 'Enter' || e.key === '=') calculate();
-      else if (e.key === 'Backspace') {
-        if (current.length > 1) { current = current.slice(0, -1); updateDisplay(); }
-        else { current = '0'; updateDisplay(); }
-      }
-      else if (e.key === 'Escape') clearAll();
-    });
-  </script>
+  <!-- Motor matemático y datos (orden importa) -->
+  <script src="js/data.js"></script>
+  <script src="js/models.js"></script>
+  <script src="js/simulation.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
