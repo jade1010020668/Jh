@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://api.anthropic.com; img-src https: data:; base-uri 'none'; form-action 'none'" />
+  <meta name="description" content="Pronósticos de fútbol con IA basados en estadísticas reales recopiladas en vivo desde la web. Liga BetPlay y grandes ligas." />
+  <meta property="og:title" content="Pronósticos de Fútbol con IA" />
+  <meta property="og:description" content="Análisis de partidos con datos en vivo. Liga BetPlay Dimayor y grandes ligas europeas." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E" />
   <title>Pronósticos Fútbol · Análisis con IA</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -31,16 +37,8 @@
 
     .container { max-width: 960px; margin: 0 auto; }
 
-    header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    header .logo {
-      font-size: 38px;
-      margin-bottom: 8px;
-    }
-
+    header { text-align: center; margin-bottom: 32px; }
+    header .logo { font-size: 38px; margin-bottom: 8px; }
     header h1 {
       font-size: 28px;
       font-weight: 700;
@@ -51,20 +49,9 @@
       background-clip: text;
       color: transparent;
     }
+    header p { color: var(--text-dim); font-size: 14px; max-width: 620px; margin: 0 auto; }
 
-    header p {
-      color: var(--text-dim);
-      font-size: 14px;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .config-bar {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
+    .config-bar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 16px; }
 
     .icon-btn {
       background: var(--card);
@@ -74,10 +61,10 @@
       padding: 8px 12px;
       font-size: 13px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: background 0.15s;
     }
-
     .icon-btn:hover { background: var(--card-2); }
+    .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
     .card {
       background: var(--card);
@@ -87,15 +74,8 @@
       margin-bottom: 20px;
     }
 
-    .selector-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-    }
-
-    @media (min-width: 720px) {
-      .selector-grid { grid-template-columns: 1fr 1fr 1fr; }
-    }
+    .selector-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 720px) { .selector-grid { grid-template-columns: 1fr 1fr 1fr; } }
 
     label {
       display: block;
@@ -107,7 +87,7 @@
       font-weight: 600;
     }
 
-    select, input[type="text"], input[type="password"] {
+    select, input[type="text"], input[type="password"], input[type="date"] {
       width: 100%;
       background: var(--bg-2);
       color: var(--text);
@@ -118,31 +98,35 @@
       font-family: inherit;
       transition: border 0.15s;
     }
+    select:focus, input:focus { outline: none; border-color: var(--accent); }
+    select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    select:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    select:focus, input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    select:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .vs {
-      text-align: center;
+    .team-field { position: relative; }
+    .link-btn {
+      background: none;
+      border: none;
+      color: #38bdf8;
       font-size: 12px;
-      color: var(--text-dim);
-      margin: 8px 0;
-      letter-spacing: 2px;
+      cursor: pointer;
+      padding: 4px 0;
+      margin-top: 4px;
+    }
+    .link-btn:hover { text-decoration: underline; }
+
+    .league-note {
+      font-size: 12px;
+      color: var(--warn);
+      margin-top: 10px;
+      line-height: 1.4;
     }
 
-    .actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 20px;
-      flex-wrap: wrap;
-    }
+    .vs { text-align: center; font-size: 12px; color: var(--text-dim); margin: 12px 0 4px; letter-spacing: 2px; }
+
+    .date-row { margin-top: 16px; }
+    .date-row label span { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-dim); }
+
+    .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
 
     .btn-primary {
       flex: 1;
@@ -155,15 +139,11 @@
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: transform 0.15s, box-shadow 0.15s;
     }
-
-    .btn-primary:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 20px rgba(34,197,94,0.25);
-    }
-
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(34,197,94,0.25); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
     .btn-secondary {
       background: var(--card-2);
@@ -174,36 +154,24 @@
       font-size: 14px;
       cursor: pointer;
     }
+    .btn-secondary:hover { background: #2c3859; }
+    .btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
     .match-preview {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 24px;
+      gap: 16px;
       padding: 20px;
       background: var(--bg-2);
       border-radius: 12px;
-      margin-bottom: 16px;
+      margin-top: 16px;
       border: 1px solid var(--border);
     }
-
-    .team-block { text-align: center; flex: 1; }
-    .team-block .role {
-      font-size: 11px;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      letter-spacing: 1px;
-      margin-bottom: 4px;
-    }
-    .team-block .name { font-size: 16px; font-weight: 600; }
-    .vs-badge {
-      background: var(--accent);
-      color: white;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 12px;
-    }
+    .team-block { text-align: center; flex: 1; min-width: 0; }
+    .team-block .role { font-size: 11px; text-transform: uppercase; color: var(--text-dim); letter-spacing: 1px; margin-bottom: 4px; }
+    .team-block .name { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+    .vs-badge { background: var(--accent); color: white; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 12px; flex-shrink: 0; }
 
     #status {
       display: none;
@@ -212,25 +180,24 @@
       margin-bottom: 16px;
       font-size: 14px;
     }
+    #status.loading { display: block; background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.3); color: #67e8f9; }
+    #status.error { display: block; background: rgba(239,68,68,0.1); border: 1px solid var(--danger); color: #fca5a5; }
+    #status.success { display: block; background: rgba(34,197,94,0.1); border: 1px solid var(--accent); color: #86efac; }
 
-    #status.loading {
-      display: block;
-      background: rgba(6,182,212,0.1);
-      border: 1px solid rgba(6,182,212,0.3);
-      color: #67e8f9;
-    }
-
-    #status.error {
-      display: block;
-      background: rgba(239,68,68,0.1);
-      border: 1px solid rgba(239,68,68,0.3);
-      color: #fca5a5;
+    .status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .status-cancel {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
     }
 
     .spinner {
       display: inline-block;
-      width: 14px;
-      height: 14px;
+      width: 14px; height: 14px;
       border: 2px solid rgba(255,255,255,0.2);
       border-top-color: currentColor;
       border-radius: 50%;
@@ -238,42 +205,32 @@
       margin-right: 8px;
       vertical-align: middle;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 
     #result-card { display: none; }
     #result-card.visible { display: block; }
 
+    .result-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .result-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+
     .result-content { line-height: 1.65; font-size: 14.5px; }
-    .result-content h2 {
-      font-size: 18px;
-      margin-top: 24px;
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
-      color: var(--accent);
-    }
+    .result-content h2 { font-size: 18px; margin-top: 24px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); color: var(--accent); }
     .result-content h2:first-child { margin-top: 0; }
     .result-content h3 { font-size: 15px; margin-top: 16px; margin-bottom: 6px; }
     .result-content p { margin-bottom: 10px; color: #d1d5db; }
-    .result-content ul, .result-content ol {
-      margin-bottom: 10px;
-      padding-left: 24px;
-      color: #d1d5db;
-    }
+    .result-content ul, .result-content ol { margin-bottom: 10px; padding-left: 24px; color: #d1d5db; }
     .result-content li { margin-bottom: 4px; }
     .result-content strong { color: var(--text); font-weight: 600; }
-    .result-content code {
-      background: var(--bg-2);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 13px;
-    }
-    .result-content a { color: #38bdf8; word-break: break-all; }
+    .result-content code { background: var(--bg-2); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .result-content a { color: #38bdf8; overflow-wrap: anywhere; }
+    .result-content hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+    .usage-line { font-size: 12px; color: var(--text-dim); margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 
     .disclaimer {
       background: rgba(245,158,11,0.08);
-      border: 1px solid rgba(245,158,11,0.3);
+      border: 1px solid var(--warn);
       border-radius: 10px;
       padding: 14px 16px;
       margin-top: 20px;
@@ -281,89 +238,58 @@
       color: #fde68a;
       line-height: 1.5;
     }
-
     .disclaimer strong { color: #fbbf24; }
 
-    /* Modal */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(4px);
+    /* Historial */
+    #history-card { display: none; }
+    #history-card.visible { display: block; }
+    .history-item {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      z-index: 100;
-      padding: 16px;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 8px;
     }
-    .modal-overlay.visible { display: flex; }
+    .history-item .meta { font-size: 13px; }
+    .history-item .meta small { color: var(--text-dim); display: block; margin-top: 2px; }
+    .history-item .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
-    .modal {
+    /* Modal nativo */
+    dialog {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 24px;
       max-width: 480px;
-      width: 100%;
+      width: calc(100% - 32px);
+      color: var(--text);
     }
-
-    .modal h2 {
-      font-size: 18px;
-      margin-bottom: 8px;
-    }
-
-    .modal p {
-      font-size: 13px;
-      color: var(--text-dim);
-      margin-bottom: 16px;
-      line-height: 1.5;
-    }
-
-    .modal .help-link {
-      color: #38bdf8;
-      font-size: 12px;
-      display: inline-block;
-      margin-top: 4px;
-    }
-
-    .modal-footer {
-      display: flex;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
-    .modal-footer button { flex: 1; }
-
+    dialog::backdrop { background: rgba(0,0,0,0.7); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+    dialog h2 { font-size: 18px; margin-bottom: 8px; }
+    dialog p { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+    .help-link { color: #38bdf8; font-size: 12px; display: inline-block; margin-top: 4px; }
+    .modal-footer { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .modal-footer .btn-primary, .modal-footer .btn-secondary { flex: 1; min-width: 120px; }
     .field { margin-bottom: 14px; }
+    code { background: var(--bg-2); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
 
-    footer {
-      text-align: center;
-      margin-top: 40px;
-      color: var(--text-dim);
-      font-size: 12px;
-    }
-
-    .badge {
-      display: inline-block;
-      background: rgba(34,197,94,0.15);
-      color: var(--accent);
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      margin-left: 6px;
-    }
+    footer { text-align: center; margin-top: 40px; color: var(--text-dim); font-size: 12px; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <div class="logo">⚽</div>
+      <div class="logo" aria-hidden="true">⚽</div>
       <h1>Pronósticos de Fútbol con IA</h1>
-      <p>Análisis basado en estadísticas reales recopiladas en vivo desde la web. Selecciona la liga y los equipos para generar un pronóstico fundamentado.</p>
+      <p>Análisis basado en estadísticas reales recopiladas en vivo desde la web. Selecciona la liga y los equipos para generar un pronóstico fundamentado. No es una garantía: apuesta con responsabilidad.</p>
     </header>
 
     <div class="config-bar">
+      <button class="icon-btn" id="btn-history" hidden>🕑 Historial</button>
       <button class="icon-btn" id="btn-config">⚙️ Configurar API key</button>
     </div>
 
@@ -375,21 +301,28 @@
             <option value="">— Selecciona una liga —</option>
           </select>
         </div>
-        <div>
+        <div class="team-field">
           <label for="home">Equipo local</label>
-          <select id="home" disabled>
-            <option value="">—</option>
-          </select>
+          <select id="home" disabled><option value="">—</option></select>
+          <input type="text" id="home-text" placeholder="Escribe el equipo local" hidden />
+          <button type="button" class="link-btn" id="home-back" hidden>↩ Elegir de la lista</button>
         </div>
-        <div>
+        <div class="team-field">
           <label for="away">Equipo visitante</label>
-          <select id="away" disabled>
-            <option value="">—</option>
-          </select>
+          <select id="away" disabled><option value="">—</option></select>
+          <input type="text" id="away-text" placeholder="Escribe el equipo visitante" hidden />
+          <button type="button" class="link-btn" id="away-back" hidden>↩ Elegir de la lista</button>
         </div>
       </div>
 
-      <div class="vs">─── VS ───</div>
+      <p class="league-note" id="league-note" hidden></p>
+
+      <div class="date-row">
+        <label for="match-date">Fecha del partido <span>(opcional — si la dejas vacía, se analiza el próximo enfrentamiento)</span></label>
+        <input type="date" id="match-date" />
+      </div>
+
+      <div class="vs" aria-hidden="true">─── VS ───</div>
 
       <div class="match-preview" id="preview" style="display:none;">
         <div class="team-block">
@@ -409,44 +342,62 @@
       </div>
     </div>
 
-    <div id="status"></div>
+    <div id="status" role="status" aria-live="polite"></div>
 
     <div class="card" id="result-card">
+      <div class="result-header">
+        <strong id="result-title">Pronóstico</strong>
+        <div class="result-tools">
+          <button class="icon-btn" id="btn-copy">📋 Copiar</button>
+          <button class="icon-btn" id="btn-share">📱 Compartir</button>
+        </div>
+      </div>
       <div class="result-content" id="result"></div>
+      <div class="usage-line" id="usage" hidden></div>
       <div class="disclaimer">
         <strong>⚠️ Aviso de juego responsable:</strong> Ningún pronóstico, por más datos que use, puede garantizar el resultado de un partido de fútbol. Existen factores impredecibles (lesiones de último minuto, decisiones arbitrales, clima, motivación). Este análisis es una <strong>herramienta de apoyo</strong>, no una garantía. Apuesta solo lo que puedas permitirte perder. Si sientes que el juego es un problema, busca ayuda.
       </div>
     </div>
 
+    <div class="card" id="history-card">
+      <div class="result-header">
+        <strong>🕑 Historial de pronósticos</strong>
+        <button class="icon-btn" id="btn-clear-history">Borrar todo</button>
+      </div>
+      <div id="history-list"></div>
+    </div>
+
     <footer>
-      Powered by Claude API · Datos en vivo via búsqueda web · Versión analítica, no garantizada
+      Powered by Claude API · Datos en vivo vía búsqueda web · Versión analítica, no garantizada
     </footer>
   </div>
 
-  <!-- Settings modal -->
-  <div class="modal-overlay" id="modal">
-    <div class="modal">
-      <h2>Configuración</h2>
+  <!-- Diálogo de configuración (nativo: foco, Escape y trap gratis) -->
+  <dialog id="modal">
+    <form method="dialog" id="config-form">
+      <h2 id="modal-title">Configuración</h2>
       <p>Esta app llama directamente a la API de Anthropic desde tu navegador. Tu API key se guarda únicamente en este navegador (<code>localStorage</code>) y nunca se envía a otro servidor.</p>
       <div class="field">
         <label for="api-key">Anthropic API key</label>
-        <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" />
-        <a class="help-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">¿De dónde la saco? →</a>
+        <input type="password" id="api-key" name="api-key" placeholder="sk-ant-..." autocomplete="new-password" spellcheck="false" />
+        <a class="help-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">¿De dónde la saco? →</a>
+        <p id="config-error" role="alert" style="color:#fca5a5;font-size:12px;margin-top:8px;" hidden></p>
       </div>
       <div class="field">
         <label for="model">Modelo</label>
-        <select id="model">
-          <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (recomendado)</option>
-          <option value="claude-opus-4-7">Claude Opus 4.7 (más profundo, más caro)</option>
+        <select id="model" name="model">
+          <option value="claude-sonnet-5">Claude Sonnet 5 (recomendado)</option>
+          <option value="claude-opus-4-8">Claude Opus 4.8 (más profundo, más caro)</option>
           <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (rápido y económico)</option>
         </select>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="btn-cancel">Cancelar</button>
-        <button class="btn-primary" id="btn-save">Guardar</button>
+        <button type="button" class="btn-secondary" id="btn-delete-key">🗑 Borrar clave</button>
+        <button type="button" class="btn-secondary" id="btn-cancel">Cancelar</button>
+        <button type="submit" class="btn-primary" id="btn-save">Guardar</button>
       </div>
-    </div>
-  </div>
+    </form>
+  </dialog>
 
   <script src="leagues.js"></script>
   <script src="app.js"></script>
