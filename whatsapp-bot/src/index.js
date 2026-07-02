@@ -12,23 +12,30 @@ const cfg = {
 };
 const LEAD = parseInt(process.env.LEAD_MINUTES || '60', 10);
 const CRON = process.env.CRON_SCHEDULE || '*/5 * * * *';
+const PROVIDER = (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase();
 
-for (const [k, v] of Object.entries({
+// Variables requeridas según el proveedor de envío elegido.
+const required = {
   ANTHROPIC_API_KEY: cfg.apiKey,
-  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
-  TWILIO_WHATSAPP_FROM: process.env.TWILIO_WHATSAPP_FROM,
   WHATSAPP_TO: process.env.WHATSAPP_TO
-})) {
+};
+if (PROVIDER === 'twilio') {
+  Object.assign(required, {
+    TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+    TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    TWILIO_WHATSAPP_FROM: process.env.TWILIO_WHATSAPP_FROM
+  });
+} else {
+  Object.assign(required, {
+    META_ACCESS_TOKEN: process.env.META_ACCESS_TOKEN,
+    META_PHONE_NUMBER_ID: process.env.META_PHONE_NUMBER_ID
+  });
+}
+for (const [k, v] of Object.entries(required)) {
   if (!v) { console.error(`❌ Falta la variable de entorno ${k}. Copia .env.example a .env y complétalo.`); process.exit(1); }
 }
 
-const send = makeSender({
-  sid: process.env.TWILIO_ACCOUNT_SID,
-  token: process.env.TWILIO_AUTH_TOKEN,
-  from: process.env.TWILIO_WHATSAPP_FROM,
-  to: process.env.WHATSAPP_TO
-});
+const send = makeSender(process.env);
 
 // ===== Persistencia de "ya enviado" =====
 const FIXTURES_URL = new URL('../fixtures.json', import.meta.url);
@@ -79,6 +86,6 @@ if (arg === '--now') {
 }
 
 // ===== Arranque normal =====
-console.log(`🤖 Bot activo. Revisa la agenda con cron "${CRON}" y envía ${LEAD} min antes de cada partido.`);
+console.log(`🤖 Bot activo (proveedor: ${PROVIDER}). Revisa la agenda con cron "${CRON}" y envía ${LEAD} min antes de cada partido.`);
 console.log(`   Partidos en agenda: ${loadFixtures().length}. Edita fixtures.json para anadir mas.`);
 cron.schedule(CRON, tick);

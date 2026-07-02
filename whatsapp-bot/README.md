@@ -13,9 +13,22 @@ Envía a tu WhatsApp el pronóstico de cada partido **1 hora antes del pitazo in
 
 1. **Node.js 18+** en un equipo o servidor **encendido 24/7** (tu PC, un Raspberry Pi, o un hosting como Railway/Render/Fly.io). Si el equipo se apaga, no se envía nada.
 2. Una **API key de Anthropic** con saldo → [console.anthropic.com](https://console.anthropic.com/settings/keys).
-3. Una cuenta de **Twilio** → [console.twilio.com](https://console.twilio.com). El **sandbox de WhatsApp** es gratis para pruebas.
+3. Un proveedor de envío de WhatsApp (elige uno):
+   - **Meta WhatsApp Cloud API** (recomendado, gratis) → [developers.facebook.com](https://developers.facebook.com).
+   - **Twilio** (sandbox gratis) → [console.twilio.com](https://console.twilio.com).
 
-> **Importante sobre WhatsApp:** por reglas de Meta, un número de empresa **no puede escribirte primero** libremente. En el *sandbox* de Twilio tú debes **unirte** enviando un código (ver abajo). Para envío en producción a tu número sin unirte, necesitas un **remitente de WhatsApp Business API aprobado** por Meta y **plantillas de mensaje** aprobadas. Esto es un requisito de WhatsApp, no del código.
+> **Importante sobre WhatsApp (regla de Meta, no del código):** un número de empresa **no puede escribirte primero** con texto libre. Solo puede fuera de eso mediante **plantillas aprobadas**. En pruebas basta con que **tú le escribas primero** al número (abres una ventana de 24 h) o registres tu número como destinatario de prueba. Esto aplica tanto a Meta como a Twilio.
+
+## 🟢 Ruta recomendada: Meta WhatsApp Cloud API (gratis)
+
+1. Entra a [developers.facebook.com](https://developers.facebook.com) → **My Apps → Create App → Business**.
+2. Agrega el producto **WhatsApp** a la app. Meta te da gratis:
+   - un **número de prueba** (emisor),
+   - un **Phone number ID** → ponlo en `META_PHONE_NUMBER_ID`,
+   - un **token temporal** (24 h) → ponlo en `META_ACCESS_TOKEN` (para dejarlo fijo, genera un *System User token* permanente en Business Settings).
+3. En la sección **API Setup**, agrega tu número (`+573183938822`) como **destinatario de prueba** y verifícalo con el código que te llega por WhatsApp.
+4. En `.env`: `WHATSAPP_PROVIDER=meta`, `WHATSAPP_TO=573183938822`.
+5. Prueba: `npm run test-now -- colombia`. Si tu número está fuera de la ventana de 24 h, escríbele primero al número de prueba desde tu WhatsApp y reintenta.
 
 ## 🚀 Instalación
 
@@ -26,11 +39,12 @@ cp .env.example .env
 # edita .env con tus llaves
 ```
 
-### Configurar el sandbox de WhatsApp (para probar gratis)
-1. En Twilio Console → **Messaging → Try it out → Send a WhatsApp message**.
-2. Verás un número (normalmente `+1 415 523 8886`) y un código tipo `join <palabra>`.
-3. Desde tu WhatsApp (`+57 318 393 8822`), envía ese `join <palabra>` a ese número.
-4. Pon ese número en `TWILIO_WHATSAPP_FROM` y tu número en `WHATSAPP_TO` (formato `whatsapp:+57...`).
+### Opción B: sandbox de Twilio (alternativa)
+1. En `.env`: `WHATSAPP_PROVIDER=twilio`.
+2. En Twilio Console → **Messaging → Try it out → Send a WhatsApp message**.
+3. Verás un número (normalmente `+1 415 523 8886`) y un código tipo `join <palabra>`.
+4. Desde tu WhatsApp (`+57 318 393 8822`), envía ese `join <palabra>` a ese número.
+5. Pon ese número en `TWILIO_WHATSAPP_FROM`. `WHATSAPP_TO` puede ir como `573183938822`.
 
 ## ▶️ Uso
 
@@ -70,9 +84,10 @@ Edita **`fixtures.json`**. Cada partido:
 |----------|-------------|
 | `ANTHROPIC_API_KEY` | Tu API key de Anthropic |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5` (rec.), `claude-opus-4-8` o `claude-haiku-4-5-20251001` |
-| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | Credenciales de Twilio |
-| `TWILIO_WHATSAPP_FROM` | Número emisor (`whatsapp:+14155238886` en sandbox) |
-| `WHATSAPP_TO` | Tu número (`whatsapp:+573183938822`) |
+| `WHATSAPP_PROVIDER` | `meta` (recomendado) o `twilio` |
+| `WHATSAPP_TO` | Tu número, solo dígitos con país (`573183938822`) |
+| `META_ACCESS_TOKEN` / `META_PHONE_NUMBER_ID` | Credenciales de Meta Cloud API (si provider=meta) |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | Credenciales de Twilio (si provider=twilio) |
 | `LEAD_MINUTES` | Minutos antes del partido para enviar (60) |
 | `CRON_SCHEDULE` | Frecuencia de revisión (`*/5 * * * *`) |
 
