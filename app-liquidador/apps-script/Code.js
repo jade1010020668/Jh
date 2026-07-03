@@ -53,6 +53,7 @@ function setup() {
      ['iva', p.iva], ['pctReteIva', p.pctReteIva], ['tabla383', JSON.stringify(p.tabla383)]
     ].forEach(function (f) { hp.appendRow(f); });
   }
+  setupObligador_(); // hojas y semillas de la carga masiva (Fase 2)
   return 'Instalación completa. Ahora ejecute definirClaveSuperadmin() y despliegue como aplicación web.';
 }
 
@@ -168,6 +169,9 @@ function apiGuardar(datos, resultado, ediciones) {
       version = 1;
     }
     var usuario = Session.getActiveUser().getEmail() || 'desconocido';
+    var pdfUrl = '';
+    try { pdfUrl = generarPdf_(datos, resultado, consecutivo, version); }
+    catch (e) { auditar_('PDF_ERROR', consecutivo, String(e)); }
     var h = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('BD');
     h.appendRow([
       consecutivo, version, new Date(), usuario, 'LIQUIDADA',
@@ -179,10 +183,10 @@ function apiGuardar(datos, resultado, ediciones) {
       resultado.baseRetefuente, resultado.retefuente, resultado.baseIca, resultado.tarifaIca,
       resultado.ica, resultado.reteIva, resultado.proUniversidades, resultado.proHospitales,
       resultado.bomberil, resultado.totalDeducciones, resultado.neto_a_pagar,
-      JSON.stringify(ediciones || []), datos.codigoOriginal || '', '', datos.observaciones || ''
+      JSON.stringify(ediciones || []), datos.codigoOriginal || '', pdfUrl, datos.observaciones || ''
     ]);
     auditar_('LIQUIDAR', consecutivo, 'v' + version + ' orfeo ' + datos.orfeo + ' ' + datos.nombre);
-    return { ok: true, consecutivo: consecutivo, version: version };
+    return { ok: true, consecutivo: consecutivo, version: version, pdfUrl: pdfUrl };
   } finally {
     lock.releaseLock();
   }

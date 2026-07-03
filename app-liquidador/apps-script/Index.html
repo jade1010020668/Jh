@@ -42,6 +42,7 @@
   <nav>
     <button id="t-nueva" class="act" onclick="tab('nueva')">Nueva liquidación</button>
     <button id="t-bd" onclick="tab('bd')">Base de datos</button>
+    <button id="t-carga" onclick="tab('carga')">Carga masiva</button>
     <button id="t-maestros" onclick="tab('maestros')">Maestros</button>
     <button id="t-admin" onclick="tab('admin')">Superadmin</button>
   </nav>
@@ -83,6 +84,32 @@
   </div>
 </section>
 
+<!-- ============ CARGA MASIVA ============ -->
+<section id="p-carga" style="display:none">
+  <div class="card">
+    <h2>1 · Liquidaciones disponibles <span class="pill" id="dispTotal"></span></h2>
+    <div class="scroll" style="max-height:300px"><table id="tablaDisp"></table></div>
+    <div style="margin-top:10px">
+      <input class="filtro" id="nombreLote" placeholder="Nombre del lote (opcional)">
+      <button class="primario" onclick="crearLote()">Crear lote con seleccionadas</button>
+    </div>
+    <div id="msgLote"></div>
+  </div>
+  <div class="card">
+    <h2>2 · Lotes</h2>
+    <div id="lotes"></div>
+  </div>
+  <div class="card" id="cardLote" style="display:none">
+    <h2 id="tituloLote"></h2>
+    <div class="scroll" style="max-height:320px"><table id="tablaLote"></table></div>
+    <div style="margin-top:10px">
+      <button class="primario" onclick="generarCarga()">⬇ Generar los 4 archivos SIIF</button>
+      <button class="primario" style="background:var(--err)" onclick="pedirReset()">Restablecer lote (clave + código)</button>
+    </div>
+    <div id="msgCarga"></div>
+  </div>
+</section>
+
 <!-- ============ MAESTROS ============ -->
 <section id="p-maestros" style="display:none">
   <div class="card">
@@ -116,12 +143,13 @@
 var datos = null, resultado = null, original = null;
 
 function tab(t) {
-  ['nueva','bd','maestros','admin'].forEach(function(x){
+  ['nueva','bd','carga','maestros','admin'].forEach(function(x){
     document.getElementById('p-'+x).style.display = x===t?'':'none';
     document.getElementById('t-'+x).className = x===t?'act':'';
   });
   if (t==='bd') cargarBD();
   if (t==='maestros') cargarMaestros();
+  if (t==='carga') { cargarDisponibles(); cargarLotes(); }
 }
 function msgs(el, r) {
   var h='';
@@ -236,6 +264,98 @@ function cargarMaestros(){
       tabla('PARÁMETROS', ['Clave','Valor'], m.parametros);
   }).apiMaestros();
 }
+// ============ CARGA MASIVA ============
+var loteActual = null;
+function cargarDisponibles(){
+  google.script.run.withSuccessHandler(function(d){
+    var h='<tr><th></th><th>Consec.</th><th>Nombre</th><th>Orfeo</th><th>RP</th><th>Neto</th><th>Retefuente</th><th>ICA</th><th>Estado</th></tr>';
+    var n=0;
+    d.forEach(function(x){
+      n++;
+      h+='<tr><td>'+(x.enLote?'🔒':'<input type="checkbox" class="chk" value="'+x.consecutivo+'">')+'</td>'+
+        '<td>'+x.consecutivo+' v'+x.version+'</td><td>'+x.nombre+'</td><td>'+x.orfeo+'</td><td>'+x.compromiso+'</td>'+
+        '<td class="v">'+fmt(x.neto)+'</td><td class="v">'+fmt(x.retefuente)+'</td><td class="v">'+fmt(x.ica)+'</td>'+
+        '<td>'+(x.enLote?'<span class="pill">en lote</span>':'disponible')+'</td></tr>';
+    });
+    document.getElementById('tablaDisp').innerHTML=h;
+    document.getElementById('dispTotal').textContent=n+' liquidaciones';
+  }).apiDisponibles();
+}
+function crearLote(){
+  var sel=[].slice.call(document.querySelectorAll('.chk:checked')).map(function(c){return Number(c.value);});
+  google.script.run.withSuccessHandler(function(r){
+    document.getElementById('msgLote').innerHTML = r.ok?'<div class="msg ok">✅ Lote '+r.id+' creado</div>':'<div class="msg err">'+(r.errores||[]).join(' ')+'</div>';
+    if(r.ok){ cargarDisponibles(); cargarLotes(); verLote(r.id, 'Lote '+r.id); }
+  }).apiCrearLote(document.getElementById('nombreLote').value, sel);
+}
+function cargarLotes(){
+  google.script.run.withSuccessHandler(function(ls){
+    var h='<table><tr><th>Id</th><th>Nombre</th><th>Estado</th><th>Fecha</th><th>Creado por</th><th></th></tr>';
+    ls.forEach(function(l){
+      h+='<tr><td>'+l.id+'</td><td>'+l.nombre+'</td><td><span class="pill">'+l.estado+'</span></td><td>'+l.fecha+'</td><td>'+l.creadoPor+'</td>'+
+         '<td><button class="primario" onclick="verLote('+l.id+',\''+String(l.nombre).replace(/'/g,'')+'\')">Abrir</button></td></tr>';
+    });
+    document.getElementById('lotes').innerHTML=h+'</table>';
+  }).apiListarLotes();
+}
+function verLote(id, nombre){
+  loteActual=id;
+  document.getElementById('tituloLote').textContent='3 · '+nombre+' (id '+id+')';
+  document.getElementById('cardLote').style.display='';
+  google.script.run.withSuccessHandler(function(r){
+    var h='<tr><th>Consec.</th><th>Nombre</th><th>Orfeo</th><th>RP</th><th>Neto</th><th>¿Sube?</th><th>Motivo</th><th>Acciones</th></tr>';
+    r.items.forEach(function(it){
+      if(it.incluido==='QUITADO') return;
+      h+='<tr><td>'+it.consecutivo+'</td><td>'+(it.nombre||'')+'</td><td>'+(it.orfeo||'')+'</td><td>'+(it.compromiso||'')+'</td>'+
+        '<td class="v">'+fmt(it.neto)+'</td><td>'+(it.incluido==='SI'?'✅':'🚫 no sube')+'</td><td>'+(it.motivo||'')+'</td>'+
+        '<td>'+(it.incluido==='SI'
+          ?'<button onclick="marcar('+it.consecutivo+',\'excluir\')">Excluir</button>'
+          :'<button onclick="marcar('+it.consecutivo+',\'incluir\')">Incluir</button>')+
+        ' <button onclick="marcar('+it.consecutivo+',\'quitar\')">Quitar</button></td></tr>';
+    });
+    document.getElementById('tablaLote').innerHTML=h;
+  }).apiVerLote(id);
+}
+function marcar(consecutivo, accion){
+  var motivo = accion==='excluir' ? (prompt('Motivo de exclusión (p. ej. "no sube en carga masiva"):')||'') : '';
+  google.script.run.withSuccessHandler(function(){ verLote(loteActual, document.getElementById('tituloLote').textContent); cargarDisponibles(); })
+    .apiMarcarItem(loteActual, consecutivo, accion, motivo);
+}
+function descargar(nombre, contenido){
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([contenido],{type:'text/plain;charset=utf-8'}));
+  a.download=nombre; a.click();
+}
+function generarCarga(){
+  document.getElementById('msgCarga').innerHTML='<div class="msg">Generando y validando…</div>';
+  google.script.run.withSuccessHandler(function(r){
+    if(r.errores && r.errores.length){ msgsCarga(r.errores); return; }
+    descargar('1_Maestro.txt', r.maestro);
+    descargar('2_Item.txt', r.item);
+    if(r.deducciones) descargar('3_Deducciones.txt', r.deducciones);
+    if(r.usos) descargar('4_Usos.txt', r.usos);
+    document.getElementById('msgCarga').innerHTML='<div class="msg ok">✅ '+r.total+' obligaciones — 4 archivos descargados. Siguiente: comprimir cada .txt en .zip y firmarlo digitalmente (.zip.p7z) con TU token, y cargarlos en SIIF → CARGA → EPG → Obligación.</div>';
+    cargarLotes();
+  }).apiGenerarCarga(loteActual);
+}
+function msgsCarga(errs){
+  document.getElementById('msgCarga').innerHTML = errs.map(function(e){return '<div class="msg err">⛔ '+e+'</div>';}).join('');
+}
+function pedirReset(){
+  var clave = prompt('Clave de superadministrador:'); if(clave===null) return;
+  google.script.run.withSuccessHandler(function(r){
+    if(!r.ok){ msgsCarga(r.errores); return; }
+    var cod = prompt('Se generó el código de confirmación: '+r.codigo+'\n\nEscríbalo para confirmar el RESET del lote (5 minutos):');
+    if(cod===null) return;
+    google.script.run.withSuccessHandler(function(r2){
+      document.getElementById('msgCarga').innerHTML = r2.ok
+        ? '<div class="msg ok">✅ Lote restablecido; las liquidaciones quedaron libres para un nuevo lote.</div>'
+        : '<div class="msg err">'+(r2.errores||[]).join(' ')+'</div>';
+      cargarLotes(); cargarDisponibles();
+    }).apiConfirmarReset(loteActual, cod);
+  }).apiSolicitarReset(loteActual, clave);
+}
+
 function saEditar(){
   google.script.run.withSuccessHandler(function(r){
     document.getElementById('msgSA').innerHTML = r.ok?'<div class="msg ok">✅ Editado (auditado)</div>':'<div class="msg err">'+(r.errores||[]).join(' ')+'</div>';
