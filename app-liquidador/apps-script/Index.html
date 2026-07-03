@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root { --azul:#1F4E79; --azul2:#2E75B6; --gris:#F4F6F8; --ok:#1a7f37; --err:#b42318; --warn:#7F6000; }
+  * { box-sizing:border-box; font-family:'Segoe UI',system-ui,sans-serif; }
+  body { margin:0; background:var(--gris); color:#1c2430; }
+  header { background:var(--azul); color:#fff; padding:12px 20px; display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  nav { display:flex; gap:4px; margin-left:auto; }
+  nav button { background:transparent; border:0; color:#cfe0f0; padding:8px 14px; cursor:pointer; border-radius:6px; font-size:14px; }
+  nav button.act { background:#ffffff22; color:#fff; font-weight:600; }
+  main { max-width:1200px; margin:20px auto; padding:0 16px; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 1px 4px #0002; padding:18px 20px; margin-bottom:16px; }
+  h2 { font-size:15px; color:var(--azul); margin:0 0 12px; }
+  textarea { width:100%; min-height:70px; padding:10px; border:1px solid #cbd3dc; border-radius:8px; font-family:Consolas,monospace; font-size:12px; }
+  button.primario { background:var(--azul2); color:#fff; border:0; padding:9px 18px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; }
+  button.primario:disabled { opacity:.5; cursor:default; }
+  .msg { padding:8px 12px; border-radius:8px; margin:8px 0; font-size:13px; }
+  .msg.err { background:#fde8e8; color:var(--err); } .msg.warn { background:#fff6d6; color:var(--warn); } .msg.ok { background:#e6f4ea; color:var(--ok); }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th { background:var(--azul); color:#fff; padding:6px 8px; text-align:left; position:sticky; top:0; }
+  td { border-bottom:1px solid #e6e9ee; padding:5px 8px; }
+  tr:nth-child(even) td { background:#f7f9fb; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; }
+  .grid label { font-size:11px; color:#5a6572; display:block; }
+  .grid input, .grid select { width:100%; padding:6px 8px; border:1px solid #cbd3dc; border-radius:6px; font-size:13px; }
+  .editado { border-color:var(--warn)!important; background:#fffbe8; }
+  .liq { font-size:13px; }
+  .liq td.v { text-align:right; font-variant-numeric:tabular-nums; }
+  .total { font-weight:700; background:#eef4fb!important; }
+  .scroll { overflow:auto; max-height:480px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; background:#e8eef6; color:var(--azul); }
+  input.filtro { padding:7px 10px; border:1px solid #cbd3dc; border-radius:8px; width:280px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💧 Liquidador IDEAM</h1>
+  <nav>
+    <button id="t-nueva" class="act" onclick="tab('nueva')">Nueva liquidación</button>
+    <button id="t-bd" onclick="tab('bd')">Base de datos</button>
+    <button id="t-maestros" onclick="tab('maestros')">Maestros</button>
+    <button id="t-admin" onclick="tab('admin')">Superadmin</button>
+  </nav>
+</header>
+<main>
+
+<!-- ============ NUEVA LIQUIDACIÓN ============ -->
+<section id="p-nueva">
+  <div class="card">
+    <h2>1 · Pega el código del radicado (Orfeo)</h2>
+    <textarea id="codigo" placeholder="64525_20251210068023-2-64525-NOMBRE-CEDULA-..."></textarea>
+    <div style="margin-top:8px"><button class="primario" onclick="parsear()">Analizar código</button></div>
+    <div id="msgParse"></div>
+  </div>
+
+  <div class="card" id="cardForm" style="display:none">
+    <h2>2 · Revisa y edita antes de liquidar <span class="pill">todo cambio queda registrado</span></h2>
+    <div class="grid" id="form"></div>
+    <div style="margin-top:12px"><button class="primario" onclick="previsualizar()">Liquidar ➜</button></div>
+    <div id="msgForm"></div>
+  </div>
+
+  <div class="card" id="cardLiq" style="display:none">
+    <h2>3 · Liquidación (formato GF-F031)</h2>
+    <div id="liq"></div>
+    <div style="margin-top:12px">
+      <button class="primario" onclick="guardar()">✔ Confirmar y guardar</button>
+      <span id="msgGuardar"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BASE DE DATOS ============ -->
+<section id="p-bd" style="display:none">
+  <div class="card">
+    <h2>Base de datos de liquidaciones <span class="pill" id="bdTotal"></span></h2>
+    <input class="filtro" id="filtro" placeholder="Filtrar por nombre, cédula, orfeo, consecutivo…" oninput="pintarBD()">
+    <div class="scroll" style="margin-top:10px"><table id="tablaBD"></table></div>
+  </div>
+</section>
+
+<!-- ============ MAESTROS ============ -->
+<section id="p-maestros" style="display:none">
+  <div class="card">
+    <h2>Maestros (prepagada · vivienda · tarifas · zonas · parámetros)</h2>
+    <p style="font-size:13px">Los maestros se editan directamente en las hojas <b>PREPAGADA, VIVIENDA, TARIFAS, ZONAS y PARAMETROS</b> del archivo de Google Sheets (con los permisos del administrador). Aquí se consultan los valores vigentes.</p>
+    <div id="maestros" class="scroll"></div>
+  </div>
+</section>
+
+<!-- ============ SUPERADMIN ============ -->
+<section id="p-admin" style="display:none">
+  <div class="card">
+    <h2>Superadministrador</h2>
+    <p style="font-size:13px">Con la clave puedes <b>editar cualquier campo</b> de una liquidación o <b>eliminarla</b> (borrado lógico — queda en la auditoría). Fila = número de fila de datos en la pestaña Base de datos.</p>
+    <div class="grid">
+      <div><label>Clave</label><input type="password" id="saClave"></div>
+      <div><label>Fila (número)</label><input type="number" id="saFila"></div>
+      <div><label>Columna</label><input id="saCol" placeholder="p. ej. dias"></div>
+      <div><label>Nuevo valor</label><input id="saVal"></div>
+    </div>
+    <div style="margin-top:10px">
+      <button class="primario" onclick="saEditar()">Editar campo</button>
+      <button class="primario" style="background:var(--err)" onclick="saEliminar()">Eliminar (lógico)</button>
+    </div>
+    <div id="msgSA"></div>
+  </div>
+</section>
+
+</main>
+<script>
+var datos = null, resultado = null, original = null;
+
+function tab(t) {
+  ['nueva','bd','maestros','admin'].forEach(function(x){
+    document.getElementById('p-'+x).style.display = x===t?'':'none';
+    document.getElementById('t-'+x).className = x===t?'act':'';
+  });
+  if (t==='bd') cargarBD();
+  if (t==='maestros') cargarMaestros();
+}
+function msgs(el, r) {
+  var h='';
+  (r.errores||[]).forEach(function(e){h+='<div class="msg err">⛔ '+e+'</div>';});
+  (r.avisos||[]).forEach(function(a){h+='<div class="msg warn">⚠️ '+a+'</div>';});
+  document.getElementById(el).innerHTML=h;
+}
+var CAMPOS_EDIT = [
+  ['nombre','Nombre'],['cedula','Cédula'],['compromiso','Compromiso (RP)'],['honorarios','Honorarios mensuales'],
+  ['dias','Días'],['responsableIva','Responsable IVA (SI/NO)'],['planilla','Planilla (A/V)'],
+  ['declarante','Declarante (SI/NO)'],['pensionado','Pensionado (SI/NO)'],['zona','Zona operativa'],
+  ['dependientes','Dependientes (SI/NO)'],['tarifa','Tarifa (383/387)'],['prepagada','Prepagada (mes)'],
+  ['vivienda','Vivienda (mes)'],['orfeo','Radicado Orfeo'],['dependencia','Dependencia'],
+  ['numCuenta','# de cuenta'],['facturador','Facturador (SI/NO)'],['telefono','Teléfono'],['observaciones','Observaciones']
+];
+function parsear() {
+  document.getElementById('msgParse').innerHTML='<div class="msg">Analizando…</div>';
+  google.script.run.withSuccessHandler(function(r){
+    msgs('msgParse', r);
+    if (!r.campos) return;
+    datos = r.campos; datos.codigoOriginal = document.getElementById('codigo').value.trim();
+    original = JSON.parse(JSON.stringify(datos));
+    var f = document.getElementById('form'); f.innerHTML='';
+    CAMPOS_EDIT.forEach(function(c){
+      var v = datos[c[0]]!=null?datos[c[0]]:'';
+      f.innerHTML += '<div><label>'+c[1]+'</label><input id="f_'+c[0]+'" value="'+String(v).replace(/"/g,'&quot;')+'" oninput="marcar(this)"></div>';
+    });
+    document.getElementById('cardForm').style.display='';
+    document.getElementById('cardLiq').style.display='none';
+  }).withFailureHandler(function(e){document.getElementById('msgParse').innerHTML='<div class="msg err">'+e.message+'</div>';})
+  .apiParsear(document.getElementById('codigo').value);
+}
+function marcar(inp){ inp.className = 'editado'; }
+function leerForm(){
+  CAMPOS_EDIT.forEach(function(c){ datos[c[0]] = document.getElementById('f_'+c[0]).value; });
+  datos.honorarios = Number(String(datos.honorarios).replace(',','.'));
+  datos.dias = Number(String(datos.dias).replace(',','.'));
+}
+function ediciones(){
+  var e=[];
+  CAMPOS_EDIT.forEach(function(c){
+    if (String(datos[c[0]]) !== String(original[c[0]]!=null?original[c[0]]:''))
+      e.push({campo:c[0], antes:original[c[0]], despues:datos[c[0]]});
+  });
+  return e;
+}
+function fmt(n){ return (n==null||isNaN(n))?'':Number(n).toLocaleString('es-CO',{maximumFractionDigits:0}); }
+function previsualizar(){
+  leerForm();
+  google.script.run.withSuccessHandler(function(r){
+    msgs('msgForm', r);
+    if(!r.ok) return;
+    resultado = r.resultado;
+    var x = resultado;
+    var filas = [
+      ['Honorario del período', x.honPeriodo], ['Base (neto de IVA)', x.neto],
+      ['— Aportes (salud+pensión+ARL)', x.salud+x.pension+x.arl], ['— Dependientes', x.dependientes],
+      ['— Prepagada', x.prepagada], ['— Vivienda', x.vivienda],
+      ['Base retefuente ('+(x.pctExenta*100)+'% exenta)', x.baseRetefuente],
+      ['RETEFUENTE (DIAN)', x.retefuente],
+      ['Base ICA — '+x.lugar, x.baseIca], ['RETEICA ('+(x.tarifaIca*100).toFixed(3)+'%)', x.ica],
+      ['RETEIVA', x.reteIva], ['Pro-universidades', x.proUniversidades],
+      ['Pro-hospitales', x.proHospitales], ['Sobretasa bomberil', x.bomberil]
+    ];
+    var h='<table class="liq">';
+    filas.forEach(function(f){ if(f[1]||f[0].indexOf('Base')===0||f[0].indexOf('Honorario')===0) h+='<tr><td>'+f[0]+'</td><td class="v">'+fmt(f[1])+'</td></tr>'; });
+    h+='<tr class="total"><td>TOTAL DEDUCCIONES</td><td class="v">'+fmt(x.totalDeducciones)+'</td></tr>';
+    h+='<tr class="total"><td>NETO A PAGAR</td><td class="v">'+fmt(x.neto_a_pagar)+'</td></tr></table>';
+    document.getElementById('liq').innerHTML=h;
+    document.getElementById('cardLiq').style.display='';
+  }).apiLiquidar(datos);
+}
+function guardar(){
+  document.getElementById('msgGuardar').innerHTML=' Guardando…';
+  google.script.run.withSuccessHandler(function(r){
+    document.getElementById('msgGuardar').innerHTML = r.ok
+      ? '<span class="msg ok">✅ Guardada — consecutivo <b>'+r.consecutivo+'</b> (versión '+r.version+')</span>'
+      : '<span class="msg err">'+(r.errores||[]).join(' ')+'</span>';
+  }).apiGuardar(datos, resultado, ediciones());
+}
+var BD=null;
+function cargarBD(){
+  google.script.run.withSuccessHandler(function(r){ BD=r; pintarBD(); }).apiListar();
+}
+function pintarBD(){
+  if(!BD) return;
+  var q = (document.getElementById('filtro').value||'').toLowerCase();
+  var cols = [0,1,2,3,4,8,9,20,10,11,24,30,33,38,39]; // columnas clave
+  var h='<tr>'; cols.forEach(function(c){h+='<th>'+BD.encabezados[c]+'</th>';}); h+='</tr>';
+  var n=0;
+  BD.filas.forEach(function(f){
+    var texto = f.join(' ').toLowerCase();
+    if(q && texto.indexOf(q)<0) return;
+    n++;
+    h+='<tr>'; cols.forEach(function(c){h+='<td>'+ (f[c]!=null?f[c]:'') +'</td>';}); h+='</tr>';
+  });
+  document.getElementById('tablaBD').innerHTML=h;
+  document.getElementById('bdTotal').textContent = n+' registros';
+}
+function cargarMaestros(){
+  google.script.run.withSuccessHandler(function(m){
+    function tabla(titulo, encs, filas){
+      var h='<h2>'+titulo+'</h2><table><tr>'; encs.forEach(function(e){h+='<th>'+e+'</th>';}); h+='</tr>';
+      filas.forEach(function(f){ h+='<tr>'; f.forEach(function(v){h+='<td>'+(v!=null?v:'')+'</td>';}); h+='</tr>'; });
+      return h+'</table><br>';
+    }
+    document.getElementById('maestros').innerHTML =
+      tabla('TARIFAS (383/387 por compromiso)', ['Compromiso','Tarifa','Responsable'], m.tarifas) +
+      tabla('PREPAGADA', ['Compromiso','Valor mensual'], m.prepagada) +
+      tabla('VIVIENDA', ['Compromiso','Valor mensual'], m.vivienda) +
+      tabla('ZONAS', ['Zona','Lugar','Tarifa ICA','NIT alcaldía','Nombre','Extra','NIT extra','Beneficiario'], m.zonas) +
+      tabla('PARÁMETROS', ['Clave','Valor'], m.parametros);
+  }).apiMaestros();
+}
+function saEditar(){
+  google.script.run.withSuccessHandler(function(r){
+    document.getElementById('msgSA').innerHTML = r.ok?'<div class="msg ok">✅ Editado (auditado)</div>':'<div class="msg err">'+(r.errores||[]).join(' ')+'</div>';
+  }).apiSuperadmin(document.getElementById('saClave').value, 'editar',
+    {fila:Number(document.getElementById('saFila').value), columna:document.getElementById('saCol').value, valor:document.getElementById('saVal').value});
+}
+function saEliminar(){
+  if(!confirm('¿Eliminar (lógicamente) la fila '+document.getElementById('saFila').value+'?')) return;
+  google.script.run.withSuccessHandler(function(r){
+    document.getElementById('msgSA').innerHTML = r.ok?'<div class="msg ok">✅ Eliminada (estado ELIMINADA, auditado)</div>':'<div class="msg err">'+(r.errores||[]).join(' ')+'</div>';
+  }).apiSuperadmin(document.getElementById('saClave').value, 'eliminar', {fila:Number(document.getElementById('saFila').value)});
+}
+</script>
+</body>
+</html>
