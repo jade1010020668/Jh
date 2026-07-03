@@ -25,7 +25,7 @@ function inicializar() {
       vivienda: SEED.vivienda.map(function (v) { return { compromiso: String(v[0]), valorMensual: v[1] }; }),
       tarifas: SEED.tarifas.map(function (t) { return { compromiso: String(t[0]), tarifa: t[1], responsable: t[2] }; }),
       paramRubros: SEED.paramRubros.map(function (r) { return { rubro: r[0], recurso: r[1], situacion: r[2], fuente: r[3], tipoGasto: r[4], tipoOperacion: r[5], usoContable: r[6], cuentaContable: r[7], usoPresupuestal: r[8] }; }),
-      compromisosSiif: [],
+      compromisosSiif: (SEED.compromisosSiif || []).map(function (c) { return { numeroDocumento: String(c[0]), dependencia: String(c[1]), dependenciaDescripcion: String(c[2]), rubro: String(c[3]), fuente: String(c[4]), recurso: String(c[5]), situacion: String(c[6]), saldoPorUtilizar: c[7] }; }),
       configSiif: { pci: '32-02-00-000', tipoCuentaCxp: '103', tipoDocSoporte: '11', expedidor: '11', atributoNormal: '5', atributoConvenio: '25', nitDian: '800197268', posRetefuente: '2-01-04-01-29', posIcaBogota: '2-01-05-01-01-03-05', posIcaOtros: '2-01-05-01-97', funcionario: '', cargoFuncionario: '' }
     },
     parametros: {

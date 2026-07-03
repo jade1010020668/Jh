@@ -259,11 +259,73 @@ var MAESTRO_DEFS = {
 };
 function pintarMaestros() {
   var h = '<div style="margin-bottom:10px"><select id="selMaestro" onchange="pintarUnMaestro()">';
-  Object.keys(MAESTRO_DEFS).forEach(function (k) { h += '<option value="' + k + '">' + MAESTRO_DEFS[k].titulo + '</option>'; });
-  h += '</select> <button class="primario" onclick="agregarFilaMaestro()">+ Agregar fila</button> <button class="primario" onclick="guardarMaestro()">💾 Guardar</button></div><div id="maestroTabla"></div>' +
+  Object.keys(MAESTRO_DEFS).forEach(function (k) { h += '<option value="' + k + '">' + MAESTRO_DEFS[k].titulo + ' (' + DB.maestros[k].length + ')</option>'; });
+  h += '</select> <button class="primario" onclick="agregarFilaMaestro()">+ Agregar fila</button> <button class="primario" onclick="guardarMaestro()">💾 Guardar</button>' +
+    ' <button class="primario" style="background:#6b46c1" onclick="togglePegar()">📋 Pegar en bloque</button>' +
+    ' <button class="primario" style="background:#7a869a" onclick="recargarSemillas()" title="Recargar compromisos y rubros del Excel IDEAM">↻ Recargar datos IDEAM</button></div>' +
+    '<div id="zonaPegar" style="display:none;margin-bottom:12px" class="card">' +
+    '<h2>Pegar en bloque</h2>' +
+    '<p style="font-size:12.5px;color:#5a6572" id="pegarAyuda"></p>' +
+    '<textarea id="pegarTexto" style="min-height:140px" placeholder="Pega aquí (copiado de Excel o del export del SIIF). Una fila por línea; columnas separadas por TAB, | o ;"></textarea>' +
+    '<div style="margin-top:8px"><label style="font-size:13px"><input type="checkbox" id="pegarReemplazar"> Reemplazar todo (si no, agrega/actualiza por la 1ª columna)</label></div>' +
+    '<div style="margin-top:8px"><button class="primario" onclick="procesarPegar()">Cargar</button> <span id="msgPegar"></span></div></div>' +
+    '<div id="maestroTabla"></div>' +
     '<div class="card" style="margin-top:16px"><h2>Parámetros de vigencia</h2><div id="paramTabla"></div><button class="primario" onclick="guardarParametros()">💾 Guardar parámetros</button></div>';
   $('maestros').innerHTML = h;
   pintarUnMaestro(); pintarParametros();
+}
+function togglePegar() {
+  var z = $('zonaPegar'); z.style.display = z.style.display === 'none' ? '' : 'none';
+  var k = $('selMaestro').value, cols = MAESTRO_DEFS[k].cols;
+  $('pegarAyuda').innerHTML = 'Maestro <b>' + MAESTRO_DEFS[k].titulo + '</b>. Columnas en este orden:<br><code>' + cols.join(' · ') + '</code>' +
+    (k === 'compromisosSiif' ? '<br>💡 Copia directo de tu hoja COMPROMISOS del Excel (columnas: Número, Dependencia, Descripción, Rubro, Fuente, Recurso, Situación, Saldo por Utilizar) o del export CEN del SIIF.' : '');
+}
+function procesarPegar() {
+  var k = $('selMaestro').value, cols = MAESTRO_DEFS[k].cols;
+  var texto = $('pegarTexto').value.trim();
+  if (!texto) { $('msgPegar').innerHTML = '<span class="msg err">Pega algo primero.</span>'; return; }
+  var lineas = texto.split(/\r?\n/).filter(function (l) { return l.trim(); });
+  var nuevas = [];
+  var sep = lineas[0].indexOf('\t') >= 0 ? '\t' : lineas[0].indexOf('|') >= 0 ? '|' : lineas[0].indexOf(';') >= 0 ? ';' : '\t';
+  var saltoEnc = 0;
+  lineas.forEach(function (ln, idx) {
+    var partes = ln.split(sep);
+    // saltar encabezado si la 1ª celda no parece dato
+    if (idx === 0 && /^(numero|número|n[uú]mero documento|rubro|compromiso|zona)/i.test(partes[0].trim())) { saltoEnc = 1; return; }
+    var o = {};
+    cols.forEach(function (c, i) {
+      var v = (partes[i] != null ? partes[i] : '').trim().replace(/^["']|["']$/g, '');
+      if (['tarifa', 'valorMensual', 'tarifaIca', 'zona', 'saldoPorUtilizar'].indexOf(c) >= 0 && v !== '') {
+        v = Number(v.replace(/\./g, '').replace(',', '.'));
+        if (isNaN(v)) v = (partes[i] || '').trim();
+      }
+      o[c] = v;
+    });
+    if (o[cols[0]] !== '' && o[cols[0]] != null) nuevas.push(o);
+  });
+  if (!nuevas.length) { $('msgPegar').innerHTML = '<span class="msg err">No se detectaron filas válidas. Revisa el separador.</span>'; return; }
+  if ($('pegarReemplazar').checked) {
+    DB.maestros[k] = nuevas;
+  } else {
+    var idx = {}; DB.maestros[k].forEach(function (f, i) { idx[String(f[cols[0]])] = i; });
+    nuevas.forEach(function (n) { var key = String(n[cols[0]]); if (idx[key] != null) DB.maestros[k][idx[key]] = n; else DB.maestros[k].push(n); });
+  }
+  auditar('MAESTRO_PEGAR:' + k, '', nuevas.length + ' filas (' + ($('pegarReemplazar').checked ? 'reemplazo' : 'agrega/actualiza') + ')');
+  guardarDB();
+  $('pegarTexto').value = '';
+  pintarUnMaestro();
+  // actualizar el contador del selector sin destruir el mensaje
+  var opt = $('selMaestro').selectedOptions[0];
+  if (opt) opt.textContent = MAESTRO_DEFS[k].titulo + ' (' + DB.maestros[k].length + ')';
+  $('msgPegar').innerHTML = '<span class="msg ok">✅ ' + nuevas.length + ' filas cargadas. Total ahora: ' + DB.maestros[k].length + '.</span>';
+}
+function recargarSemillas() {
+  if (!confirm('Recargar los compromisos y la parametrización de rubros del Excel IDEAM. Esto REEMPLAZA los maestros COMPROMISOS SIIF y PARÁMETROS DE RUBROS actuales. ¿Continuar?')) return;
+  DB.maestros.compromisosSiif = (SEED.compromisosSiif || []).map(function (c) { return { numeroDocumento: String(c[0]), dependencia: String(c[1]), dependenciaDescripcion: String(c[2]), rubro: String(c[3]), fuente: String(c[4]), recurso: String(c[5]), situacion: String(c[6]), saldoPorUtilizar: c[7] }; });
+  DB.maestros.paramRubros = SEED.paramRubros.map(function (r) { return { rubro: r[0], recurso: r[1], situacion: r[2], fuente: r[3], tipoGasto: r[4], tipoOperacion: r[5], usoContable: r[6], cuentaContable: r[7], usoPresupuestal: r[8] }; });
+  auditar('RECARGAR_SEMILLAS', '', DB.maestros.compromisosSiif.length + ' compromisos, ' + DB.maestros.paramRubros.length + ' rubros'); guardarDB();
+  alert('Recargados ' + DB.maestros.compromisosSiif.length + ' compromisos y ' + DB.maestros.paramRubros.length + ' rubros.');
+  pintarMaestros();
 }
 function pintarUnMaestro() {
   var k = $('selMaestro').value, def = MAESTRO_DEFS[k], filas = DB.maestros[k];

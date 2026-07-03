@@ -17,8 +17,11 @@ Los datos se guardan en el **almacenamiento local del navegador** (localStorage)
 
 ## Antes de la primera carga masiva
 
-- Pega en el maestro **COMPROMISOS SIIF** el export de compromisos del SIIF (número, dependencia, rubro, fuente, recurso, situación, saldo).
-- Revisa **PARÁMETROS DE RUBROS** (vienen 3 sembrados) y **configuración SIIF** (PCI 32-02-00-000, etc.).
+Ya vienen sembrados del Excel **301 compromisos** y **24 rubros parametrizados**, así que funciona de una. Para actualizarlos:
+
+- Pestaña **Maestros** → selecciona **COMPROMISOS SIIF** → botón **📋 Pegar en bloque** → copia tu hoja COMPROMISOS del Excel (o el export CEN del SIIF) y pégala (detecta TAB / `|` / `;`). Marca "Reemplazar todo" para dejar solo lo nuevo, o déjalo sin marcar para agregar/actualizar por número de compromiso.
+- Botón **↻ Recargar datos IDEAM** vuelve a cargar los compromisos y rubros originales del Excel.
+- Los saldos del Excel son de una fecha dada; refréscalos con el export del SIIF antes de obligar valores límite.
 
 ## Nota
 
