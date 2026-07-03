@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquidador IDEAM</title>
+<style>
+  :root { --azul:#1F4E79; --azul2:#2E75B6; --gris:#F4F6F8; --ok:#1a7f37; --err:#b42318; --warn:#7F6000; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--gris); color:#1c2430; font-family:'Segoe UI',system-ui,sans-serif; }
+  header { background:var(--azul); color:#fff; padding:12px 20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  nav { display:flex; gap:4px; margin-left:auto; flex-wrap:wrap; }
+  nav button { background:transparent; border:0; color:#cfe0f0; padding:8px 13px; cursor:pointer; border-radius:6px; font-size:14px; }
+  nav button.act { background:#ffffff22; color:#fff; font-weight:600; }
+  .user { font-size:12px; color:#bcd; }
+  main { max-width:1220px; margin:18px auto; padding:0 14px; }
+  .card { background:#fff; border-radius:10px; box-shadow:0 1px 4px #0002; padding:16px 18px; margin-bottom:14px; }
+  h2 { font-size:15px; color:var(--azul); margin:0 0 12px; }
+  textarea { width:100%; min-height:64px; padding:10px; border:1px solid #cbd3dc; border-radius:8px; font-family:Consolas,monospace; font-size:12px; }
+  button.primario { background:var(--azul2); color:#fff; border:0; padding:8px 16px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; }
+  button { cursor:pointer; }
+  .msg { padding:8px 12px; border-radius:8px; margin:8px 0; font-size:13px; }
+  .msg.err { background:#fde8e8; color:var(--err); } .msg.warn { background:#fff6d6; color:var(--warn); } .msg.ok { background:#e6f4ea; color:var(--ok); }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th { background:var(--azul); color:#fff; padding:6px 8px; text-align:left; position:sticky; top:0; }
+  td { border-bottom:1px solid #e6e9ee; padding:5px 8px; }
+  tr:nth-child(even) td { background:#f7f9fb; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+  .grid label { font-size:11px; color:#5a6572; display:block; }
+  .grid input { width:100%; padding:6px 8px; border:1px solid #cbd3dc; border-radius:6px; font-size:13px; }
+  .editado { border-color:var(--warn)!important; background:#fffbe8; }
+  .liq td.v { text-align:right; font-variant-numeric:tabular-nums; }
+  .total { font-weight:700; background:#eef4fb!important; }
+  .v { text-align:right; }
+  .scroll { overflow:auto; max-height:460px; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; background:#e8eef6; color:var(--azul); }
+  input.filtro { padding:7px 10px; border:1px solid #cbd3dc; border-radius:8px; width:280px; }
+  select { padding:7px; border:1px solid #cbd3dc; border-radius:8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💧 Liquidador IDEAM</h1>
+  <span class="user">👤 <span id="usuario"></span></span>
+  <nav>
+    <button id="t-nueva" class="act" onclick="tab('nueva')">Nueva liquidación</button>
+    <button id="t-bd" onclick="tab('bd')">Base de datos</button>
+    <button id="t-carga" onclick="tab('carga')">Carga masiva</button>
+    <button id="t-maestros" onclick="tab('maestros')">Maestros</button>
+    <button id="t-admin" onclick="tab('admin')">Superadmin</button>
+  </nav>
+</header>
+<main>
+
+<section id="p-nueva">
+  <div class="card">
+    <h2>1 · Pega el código del radicado (Orfeo)</h2>
+    <textarea id="codigo" placeholder="64525_20251210068023-2-64525-NOMBRE-CEDULA-HONORARIOS-DIAS-..."></textarea>
+    <div style="margin-top:8px"><button class="primario" onclick="analizar()">Analizar código</button></div>
+    <div id="msgParse"></div>
+  </div>
+  <div class="card" id="cardForm" style="display:none">
+    <h2>2 · Revisa y edita antes de liquidar <span class="pill">cada cambio queda registrado</span></h2>
+    <div class="grid" id="form"></div>
+    <div style="margin-top:12px"><button class="primario" onclick="previsualizar()">Liquidar ➜</button></div>
+    <div id="msgForm"></div>
+  </div>
+  <div class="card" id="cardLiq" style="display:none">
+    <h2>3 · Liquidación (formato GF-F031)</h2>
+    <div id="liq"></div>
+    <div style="margin-top:12px"><button class="primario" onclick="guardar()">✔ Confirmar y guardar</button> <span id="msgGuardar"></span></div>
+  </div>
+</section>
+
+<section id="p-bd" style="display:none">
+  <div class="card">
+    <h2>Base de datos de liquidaciones <span class="pill" id="bdTotal"></span></h2>
+    <input class="filtro" id="filtro" placeholder="Filtrar por nombre, cédula, orfeo, consecutivo…" oninput="pintarBD()">
+    <div class="scroll" style="margin-top:10px"><table id="tablaBD"></table></div>
+  </div>
+</section>
+
+<section id="p-carga" style="display:none">
+  <div class="card">
+    <h2>1 · Liquidaciones disponibles <span class="pill" id="dispTotal"></span></h2>
+    <div class="scroll" style="max-height:300px"><table id="tablaDisp"></table></div>
+    <div style="margin-top:10px">
+      <input class="filtro" id="nombreLote" placeholder="Nombre del lote (opcional)">
+      <button class="primario" onclick="crearLote()">Crear lote con seleccionadas</button>
+    </div>
+    <div id="msgLote"></div>
+  </div>
+  <div class="card"><h2>2 · Lotes</h2><div id="lotes"></div></div>
+  <div class="card" id="cardLote" style="display:none">
+    <h2 id="tituloLote"></h2>
+    <div class="scroll" style="max-height:320px"><table id="tablaLote"></table></div>
+    <div style="margin-top:10px">
+      <button class="primario" onclick="generarCarga()">⬇ Generar los 4 archivos SIIF</button>
+      <button class="primario" style="background:var(--err)" onclick="pedirReset()">Restablecer lote (clave + código)</button>
+    </div>
+    <div id="msgCarga"></div>
+  </div>
+</section>
+
+<section id="p-maestros" style="display:none">
+  <div class="card">
+    <h2>Maestros (editables) — prepagada · vivienda · tarifas · zonas · rubros · compromisos SIIF</h2>
+    <p style="font-size:13px;color:#5a6572">Pega el export de compromisos del SIIF en <b>COMPROMISOS SIIF</b> y completa <b>PARÁMETROS DE RUBROS</b> para habilitar la carga masiva. Recuerda guardar cada maestro.</p>
+    <div id="maestros"></div>
+  </div>
+</section>
+
+<section id="p-admin" style="display:none">
+  <div class="card">
+    <h2>Superadministrador</h2>
+    <div class="grid">
+      <div><label>Definir/cambiar clave</label><input type="password" id="saNueva"></div>
+      <div style="align-self:end"><button class="primario" onclick="definirClave()">Definir clave</button></div>
+    </div>
+    <hr style="margin:14px 0;border:0;border-top:1px solid #e6e9ee">
+    <p style="font-size:13px;color:#5a6572">Editar cualquier campo de una liquidación o eliminarla (borrado lógico — queda en la auditoría).</p>
+    <div class="grid">
+      <div><label>Clave</label><input type="password" id="saClave"></div>
+      <div><label>Consecutivo</label><input type="number" id="saCons"></div>
+      <div><label>Versión (opcional)</label><input type="number" id="saVer"></div>
+      <div><label>Columna</label><input id="saCol" placeholder="p. ej. dias"></div>
+      <div><label>Nuevo valor</label><input id="saVal"></div>
+    </div>
+    <div style="margin-top:10px">
+      <button class="primario" onclick="saAccion('editar')">Editar campo</button>
+      <button class="primario" style="background:var(--err)" onclick="saAccion('eliminar')">Eliminar (lógico)</button>
+    </div>
+    <div id="msgSA"></div>
+  </div>
+  <div class="card">
+    <h2>Respaldo y auditoría</h2>
+    <button class="primario" onclick="exportarRespaldo()">⬇ Exportar respaldo (JSON)</button>
+    <label class="primario" style="display:inline-block">⬆ Importar respaldo<input type="file" accept=".json" onchange="importarRespaldo(this)" style="display:none"></label>
+    <button class="primario" onclick="verAuditoria()">Ver auditoría</button>
+    <div class="scroll" style="margin-top:10px"><div id="auditoria"></div></div>
+  </div>
+</section>
+
+</main>
+<script src="seed.js"></script>
+<script src="app.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
