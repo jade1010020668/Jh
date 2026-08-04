@@ -3,17 +3,23 @@ import { generateImage } from '../../../lib/image';
 import { buildImageRequest } from '../../../lib/appearance';
 import { checkSafety, BLOCKED_RESPONSE } from '../../../lib/safety';
 import { DEFAULT_CHARACTER } from '../../../lib/persona';
+import { currentUser } from '../../../lib/auth';
+import { logEvent } from '../../../lib/db';
 
 export const runtime = 'nodejs';
 
 export async function POST(req) {
   try {
+    const user = await currentUser(req);
+    if (!user) return NextResponse.json({ error: 'Inicia sesión' }, { status: 401 });
+
     const { character, scene, providerId } = await req.json();
     const char = character || DEFAULT_CHARACTER;
 
     // 1) Seguridad del PROMPT de la escena (líneas rojas, docs/07 §3.1).
     const check = checkSafety(scene || '');
     if (!check.ok) {
+      await logEvent(user.id, 'safety_block', { reason: check.reason, kind: 'photo' });
       return NextResponse.json({ error: BLOCKED_RESPONSE, blocked: check.reason }, { status: 200 });
     }
 
@@ -22,6 +28,7 @@ export async function POST(req) {
 
     // 3) Generar.
     const result = await generateImage({ ...request, providerId });
+    await logEvent(user.id, 'photo', { characterId: char.id });
 
     // NOTA de producción: aquí va OBLIGATORIO un clasificador de imagen
     // (edad aparente >=21, CSAM hash+predictivo) antes de devolverla —

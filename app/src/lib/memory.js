@@ -1,34 +1,13 @@
-// Memoria v1: archivo JSON por sesión (MVP). En producción: Postgres + pgvector
-// con extracción de hechos y resúmenes progresivos (docs/06 M9).
-import { promises as fs } from 'fs';
-import path from 'path';
+// Memoria por usuario+personaje, ahora sobre la capa de datos (db.js).
+// Persiste entre sesiones y entre dispositivos (clave para el "ella me recuerda").
+import { loadConvo, saveConvo } from './db';
 
-const DATA_DIR = process.env.AMARA_DATA_DIR || path.join(process.cwd(), '.data');
-
-async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+export async function loadSession(userId, characterId) {
+  return loadConvo(userId, characterId);
 }
 
-function fileFor(sessionId) {
-  const safe = String(sessionId).replace(/[^a-zA-Z0-9_-]/g, '');
-  return path.join(DATA_DIR, `session-${safe}.json`);
-}
-
-export async function loadSession(sessionId) {
-  await ensureDir();
-  try {
-    const raw = await fs.readFile(fileFor(sessionId), 'utf8');
-    return JSON.parse(raw);
-  } catch {
-    return { character: null, messages: [], facts: [] };
-  }
-}
-
-export async function saveSession(sessionId, session) {
-  await ensureDir();
-  // Solo se conservan los últimos 60 mensajes; el resto vive como "hechos"/resumen.
-  const toSave = { ...session, messages: session.messages.slice(-60) };
-  await fs.writeFile(fileFor(sessionId), JSON.stringify(toSave, null, 2), 'utf8');
+export async function saveSession(userId, characterId, session) {
+  await saveConvo(userId, characterId, session);
 }
 
 // Extracción de hechos ultra-simple para el MVP (regex de patrones comunes).
@@ -55,6 +34,6 @@ export function extractFacts(userText, existingFacts) {
 }
 
 export function memoryContext(session) {
-  if (!session.facts.length) return '';
+  if (!session.facts?.length) return '';
   return session.facts.slice(-15).map((f) => `- ${f}`).join('\n');
 }

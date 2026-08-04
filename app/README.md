@@ -55,6 +55,32 @@ PWA (React/Next) ── POST /api/chat ──▶  pipeline:
 - ✅ Selector Grok/DeepSeek en vivo.
 - ✅ Instalable (manifest + service worker + íconos).
 
-## Siguiente paso
+## Cuentas, base de datos y validación
 
-Con `OPENROUTER_API_KEY` puesta, ya puedes chatear con DeepSeek real y comparar contra Grok. Después, según el roadmap: fábrica de personajes (imagen + LoRA), voz (TTS), y — fase 3 — videollamada.
+Ahora la app tiene **cuentas reales** y **base de datos**, pensada para un **piloto que mide demanda antes de gastar** en pagos/legal:
+
+- **Auth** (`src/lib/auth.js`): registro/login con contraseña (scrypt) + sesión firmada (HMAC), sin dependencias externas. Cookie httpOnly.
+- **Base de datos** (`src/lib/db.js`): dos drivers, mismo patrón que la IA:
+  - **Postgres** si defines `DATABASE_URL` (producción: Neon/Supabase gratis, funciona en Vercel).
+  - **Local** (archivos en `.data/`) si no — para sandbox/desarrollo.
+- **Memoria persistente por usuario+personaje**: la relación y lo que ella recuerda sobreviven entre sesiones y dispositivos (la clave del "ella me recuerda").
+- **Analítica de embudo** (`/api/stats`): signup → mensajes → subidas de nivel → paywall → **intención de pago**. Es tu tablero de validación.
+- **Paywall de intención** (`/api/checkout-intent`): tras 40 mensajes gratis, mide cuántos **querrían** pagar — sin cobrar todavía. Cuando validas demanda, aquí entra el procesador real (docs/03).
+
+### Flujo verificado (build local + curl)
+- ✅ Registro → verificación de edad → chat (auth obligatoria; sin login = 401).
+- ✅ Memoria persiste en DB por usuario ("Se llama Juan" recordado).
+- ✅ Relación avanza y sube de nivel; contenido explícito gateado por nivel + edad + premium.
+- ✅ Paywall a los 40 mensajes; intención de pago registrada.
+- ✅ Embudo: `{usuarios, registros, mensajes, clicks_en_pagar, intencion_de_pago_pct}`.
+
+## Desplegar el piloto (para probar demanda)
+
+1. Crea una base Postgres gratis en [Neon](https://neon.tech) → copia la `DATABASE_URL`.
+2. Despliega en [Vercel](https://vercel.com) (importa el repo, root = `app/`).
+3. Variables: `DATABASE_URL`, `AUTH_SECRET` (cadena larga aleatoria), `OPENROUTER_API_KEY`.
+4. Comparte la URL, mira `/api/stats`. Si la intención de pago es sana, toca montar pagos reales (docs/03).
+
+## Siguiente paso del roadmap
+
+Notas de voz (TTS español), creación de personaje (desde cero / referencia), y — fase 3 — videollamada.
