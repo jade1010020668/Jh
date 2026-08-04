@@ -2,10 +2,14 @@
 import { useEffect, useRef, useState } from 'react';
 
 const CHARACTERS = [
-  { id: 'amara', name: 'Amara', age: 26, job: 'fotógrafa', personality: 'juguetona', accent: 'colombiana', relationship: 'conociendose', emoji: '📸' },
-  { id: 'valentina', name: 'Valentina', age: 28, job: 'chef', personality: 'intensa', accent: 'argentina', relationship: 'conociendose', emoji: '🔥' },
-  { id: 'sofia', name: 'Sofía', age: 24, job: 'estudiante de arte', personality: 'timida', accent: 'mexicana', relationship: 'conociendose', emoji: '🎨' },
-  { id: 'lucia', name: 'Lucía', age: 30, job: 'música', personality: 'dulce', accent: 'espanola', relationship: 'conociendose', emoji: '🎧' },
+  { id: 'amara', name: 'Amara', age: 26, job: 'fotógrafa', personality: 'juguetona', accent: 'colombiana', relationship: 'conociendose', emoji: '📸',
+    appearance: { ethnicity: 'latina', hair: 'castano_ondulado', body: 'curvas', style: 'coqueta' } },
+  { id: 'valentina', name: 'Valentina', age: 28, job: 'chef', personality: 'intensa', accent: 'argentina', relationship: 'conociendose', emoji: '🔥',
+    appearance: { ethnicity: 'blanca', hair: 'negro_largo', body: 'voluptuosa', style: 'elegante' } },
+  { id: 'sofia', name: 'Sofía', age: 24, job: 'estudiante de arte', personality: 'timida', accent: 'mexicana', relationship: 'conociendose', emoji: '🎨',
+    appearance: { ethnicity: 'morena', hair: 'corto', body: 'esbelta', style: 'casual' } },
+  { id: 'lucia', name: 'Lucía', age: 30, job: 'música', personality: 'dulce', accent: 'espanola', relationship: 'conociendose', emoji: '🎧',
+    appearance: { ethnicity: 'blanca', hair: 'rubio', body: 'atletica', style: 'deportiva' } },
 ];
 
 function newSessionId() {
@@ -20,6 +24,7 @@ export default function Home() {
   const [character, setCharacter] = useState(null);
   const [providers, setProviders] = useState([]);
   const [providerId, setProviderId] = useState('deepseek');
+  const [imgProviderId, setImgProviderId] = useState('novita');
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,6 +42,10 @@ export default function Home() {
       const configured = (d.providers || []).find((p) => p.configured);
       if (configured) setProviderId(configured.id);
     }).catch(() => {});
+    fetch('/api/image-providers').then((r) => r.json()).then((d) => {
+      const configured = (d.providers || []).find((p) => p.configured);
+      if (configured) setImgProviderId(configured.id);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -53,6 +62,11 @@ export default function Home() {
     setMessages([{ role: 'assistant', content: `Hola, soy ${c.name} ${c.emoji}` }]);
   }
 
+  // Detecta si el usuario está pidiendo una foto en lenguaje natural.
+  function isPhotoRequest(text) {
+    return /\b(foto|selfie|imagen|f[oó]tico|mu[eé]strame|env[ií]ame una|m[aá]ndame una)\b/i.test(text);
+  }
+
   async function send() {
     const text = input.trim();
     if (!text || busy) return;
@@ -60,6 +74,10 @@ export default function Home() {
     setMessages((m) => [...m, { role: 'user', content: text }]);
     setBusy(true);
     try {
+      if (isPhotoRequest(text)) {
+        await requestPhoto(text);
+        return;
+      }
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,11 +89,32 @@ export default function Home() {
       } else {
         setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
         setMeta({ provider: data.provider, latencyMs: data.latencyMs, model: data.model, facts: data.factsLearned, blocked: data.blocked });
+        if (data.relationship) setRelationship(data.relationship);
       }
     } catch (e) {
       setMessages((m) => [...m, { role: 'assistant', content: '⚠️ Error de red: ' + e.message }]);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function requestPhoto(scene) {
+    setMessages((m) => [...m, { role: 'assistant', content: '📸 ' + character.name + ' se está tomando una foto…' }]);
+    try {
+      const res = await fetch('/api/photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character, scene, providerId: imgProviderId }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setMessages((m) => [...m.slice(0, -1), { role: 'assistant', content: data.error }]);
+      } else {
+        setMessages((m) => [...m.slice(0, -1), { role: 'assistant', image: data.image, content: '' }]);
+        setMeta({ provider: 'imagen · ' + data.provider, latencyMs: data.latencyMs, model: 'seed ' + data.seed });
+      }
+    } catch (e) {
+      setMessages((m) => [...m.slice(0, -1), { role: 'assistant', content: '⚠️ Error generando la foto: ' + e.message }]);
     }
   }
 
@@ -138,7 +177,11 @@ export default function Home() {
       <div ref={scrollRef} style={chatArea}>
         {messages.map((m, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={m.role === 'user' ? bubbleUser : bubbleAI}>{m.content}</div>
+            {m.image ? (
+              <img src={m.image} alt="foto" style={photoBubble} />
+            ) : (
+              <div style={m.role === 'user' ? bubbleUser : bubbleAI}>{m.content}</div>
+            )}
           </div>
         ))}
         {busy && <div style={{ ...bubbleAI, opacity: 0.6 }}>escribiendo…</div>}
@@ -153,6 +196,7 @@ export default function Home() {
       )}
 
       <div style={inputBar}>
+        <button onClick={() => requestPhoto('')} disabled={busy} style={photoBtn} title="Pídele una foto">📷</button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -180,6 +224,8 @@ const chatArea = { flex: 1, overflowY: 'auto', padding: 16, display: 'flex', fle
 const bubbleBase = { padding: '10px 14px', borderRadius: 18, maxWidth: '78%', lineHeight: 1.4, fontSize: 15, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
 const bubbleUser = { ...bubbleBase, background: 'linear-gradient(135deg,#b043ff,#ff4d8d)', color: '#fff', borderBottomRightRadius: 6 };
 const bubbleAI = { ...bubbleBase, background: '#1c1828', border: '1px solid #2a2438', borderBottomLeftRadius: 6 };
+const photoBubble = { maxWidth: '60%', borderRadius: 18, borderBottomLeftRadius: 6, border: '1px solid #2a2438' };
+const photoBtn = { width: 46, borderRadius: '50%', border: '1px solid #2a2438', background: '#1c1828', fontSize: 18, cursor: 'pointer' };
 const metaBar = { fontSize: 11, opacity: 0.55, padding: '4px 14px', textAlign: 'center' };
 const inputBar = { display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #221d30', background: '#100e18', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' };
 const textInput = { flex: 1, background: '#1c1828', border: '1px solid #2a2438', borderRadius: 22, padding: '12px 16px', color: '#f4f2f8', fontSize: 15, outline: 'none' };
