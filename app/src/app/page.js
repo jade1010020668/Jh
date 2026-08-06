@@ -34,6 +34,9 @@ export default function Home() {
   const [meta, setMeta] = useState(null);
   const [relationship, setRelationship] = useState(null);
   const [paywall, setPaywall] = useState(null);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [customChars, setCustomChars] = useState([]);
+  const [creating, setCreating] = useState(false);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -46,13 +49,40 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (user) fetch('/api/characters').then((r) => r.json()).then((d) => setCustomChars(d.characters || [])).catch(() => {});
+  }, [user]);
+
+  // Voz: reproduce audio (ElevenLabs) o habla con la voz del dispositivo (demo).
+  async function speak(text, char) {
+    try {
+      const res = await fetch('/api/voice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, character: char || character }),
+      });
+      const data = await res.json();
+      if (data.mode === 'audio' && data.audio) {
+        new Audio(data.audio).play().catch(() => {});
+      } else if (data.mode === 'browser' && typeof window !== 'undefined' && window.speechSynthesis) {
+        const u = new SpeechSynthesisUtterance(text.replace(/[\p{Emoji}]/gu, ''));
+        u.lang = data.params?.lang || 'es-ES';
+        u.rate = data.params?.rate || 1; u.pitch = data.params?.pitch || 1;
+        const v = window.speechSynthesis.getVoices().find((x) => x.lang?.startsWith('es'));
+        if (v) u.voice = v;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      }
+    } catch {}
+  }
+
+  useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, busy]);
 
   function pickCharacter(c) {
-    const withTraits = { ...c, traits };
+    // Personajes del catálogo usan los traits elegidos; los personalizados traen los suyos.
+    const withTraits = c.custom ? c : { ...c, traits };
     setCharacter(withTraits);
-    setMessages([{ role: 'assistant', content: `hola! soy ${c.name} ${c.emoji} un gusto conocerte 😊` }]);
+    setMessages([{ role: 'assistant', content: `hola! soy ${c.name} ${c.emoji || '💜'} un gusto conocerte 😊` }]);
     setRelationship(null);
     setPaywall(null);
   }
@@ -81,6 +111,7 @@ export default function Home() {
       } else {
         setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
         setMeta({ provider: data.provider, latencyMs: data.latencyMs, facts: data.factsLearned, freeLeft: data.freeLeft });
+        if (voiceOn && data.reply) speak(data.reply);
         if (data.relationship) {
           setRelationship(data.relationship);
           if (data.relationship.leveledUp) {
@@ -123,7 +154,8 @@ export default function Home() {
   if (user === undefined) return <Center><div style={{ opacity: 0.6 }}>Cargando…</div></Center>;
   if (!user) return <Auth onAuth={setUser} />;
   if (!user.ageVerified) return <AgeGate onVerified={() => setUser({ ...user, ageVerified: true })} />;
-  if (!character) return <Picker traits={traits} setTraits={setTraits} onPick={pickCharacter} user={user} onLogout={() => setUser(null)} />;
+  if (creating) return <Creator onDone={(c) => { setCreating(false); if (c) { setCustomChars((cur) => [...cur, c]); pickCharacter(c); } }} />;
+  if (!character) return <Picker traits={traits} setTraits={setTraits} onPick={pickCharacter} customChars={customChars} onCreate={() => setCreating(true)} onLogout={() => setUser(null)} />;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', maxWidth: 680, margin: '0 auto' }}>
@@ -136,6 +168,10 @@ export default function Home() {
             {meta?.freeLeft != null ? ` · ${meta.freeLeft} gratis` : ''}
           </div>
         </div>
+        <button onClick={() => { setVoiceOn(!voiceOn); if (voiceOn && window.speechSynthesis) window.speechSynthesis.cancel(); }}
+          style={{ ...voiceToggle, ...(voiceOn ? voiceToggleOn : {}) }} title="Voz de ella">
+          {voiceOn ? '🔊' : '🔇'}
+        </button>
         <select value={providerId} onChange={(e) => setProviderId(e.target.value)} style={select}>
           {providers.map((p) => <option key={p.id} value={p.id}>{p.label}{p.configured ? '' : ' (demo)'}</option>)}
         </select>
@@ -152,7 +188,9 @@ export default function Home() {
           <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : m.role === 'system' ? 'center' : 'flex-start' }}>
             {m.image ? <img src={m.image} alt="foto" style={photoBubble} />
               : m.role === 'system' ? <div style={systemMsg}>{m.content}</div>
-              : <div style={m.role === 'user' ? bubbleUser : bubbleAI}>{m.content}</div>}
+              : m.role === 'assistant'
+                ? <div style={bubbleAI}>{m.content}<button onClick={() => speak(m.content)} style={playBtn} title="Escuchar">🔊</button></div>
+                : <div style={bubbleUser}>{m.content}</div>}
           </div>
         ))}
         {busy && <div style={{ ...bubbleAI, opacity: 0.6 }}>escribiendo…</div>}
@@ -222,7 +260,7 @@ function AgeGate({ onVerified }) {
   );
 }
 
-function Picker({ traits, setTraits, onPick, user, onLogout }) {
+function Picker({ traits, setTraits, onPick, customChars, onCreate, onLogout }) {
   function toggle(t) { setTraits((cur) => cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]); }
   return (
     <Center><div style={{ ...card, maxWidth: 640 }}>
@@ -230,7 +268,26 @@ function Picker({ traits, setTraits, onPick, user, onLogout }) {
         <h2 style={{ margin: 0 }}>Elige y personaliza</h2>
         <button onClick={async () => { await fetch('/api/auth/me', { method: 'DELETE' }); onLogout(); }} style={linkBtn}>Salir</button>
       </div>
-      <p style={{ opacity: 0.7, fontSize: 13 }}>¿Cómo quieres que sea? (empiezan como amigos y la relación avanza)</p>
+
+      {customChars.length > 0 && (
+        <>
+          <p style={{ opacity: 0.7, fontSize: 13, marginBottom: 8 }}>Tus compañeras</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, marginBottom: 18 }}>
+            {customChars.map((c) => (
+              <button key={c.id} style={{ ...charCard, borderColor: 'var(--accent, #b043ff)' }} onClick={() => onPick(c)}>
+                <div style={{ fontSize: 40 }}>{c.emoji || '💜'}</div>
+                <div style={{ fontWeight: 600 }}>{c.name}, {c.age}</div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>{c.job}</div>
+                <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>{c.accent}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <button onClick={onCreate} style={createBtn}>✨ Crear mi compañera desde cero</button>
+
+      <p style={{ opacity: 0.7, fontSize: 13, margin: '18px 0 8px' }}>O elige del catálogo (empiezan como amigos y la relación avanza):</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
         {TRAIT_OPTIONS.map((t) => (
           <button key={t.id} onClick={() => toggle(t.id)}
@@ -247,6 +304,85 @@ function Picker({ traits, setTraits, onPick, user, onLogout }) {
           </button>
         ))}
       </div>
+    </div></Center>
+  );
+}
+
+// Creador de compañera desde cero (docs/06 M3). Guarda en la base de datos.
+function Creator({ onDone }) {
+  const [f, setF] = useState({
+    name: '', age: 25, job: '', emoji: '💜', personality: 'dulce', accent: 'colombiana',
+    ethnicity: 'latina', hair: 'castano_ondulado', body: 'curvas', style: 'coqueta',
+    traits: ['cariñosa'], bio: '',
+  });
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const toggleTrait = (t) => setF((s) => ({ ...s, traits: s.traits.includes(t) ? s.traits.filter((x) => x !== t) : [...s.traits, t].slice(0, 4) }));
+
+  async function create() {
+    setErr(''); setBusy(true);
+    try {
+      const res = await fetch('/api/characters', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: f.name, age: f.age, job: f.job, emoji: f.emoji, personality: f.personality,
+          accent: f.accent, traits: f.traits, bio: f.bio,
+          appearance: { ethnicity: f.ethnicity, hair: f.hair, body: f.body, style: f.style },
+        }),
+      });
+      const data = await res.json();
+      if (data.error) setErr(data.error);
+      else onDone(data.character);
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  const Row = ({ label, k, opts }) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {opts.map((o) => (
+          <button key={o} onClick={() => set(k, o)} style={{ ...traitChip, ...(f[k] === o ? traitChipOn : {}) }}>{o}</button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <Center><div style={{ ...card, maxWidth: 520, textAlign: 'left', maxHeight: '92dvh', overflowY: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0 }}>Crea tu compañera ✨</h2>
+        <button onClick={() => onDone(null)} style={linkBtn}>Cancelar</button>
+      </div>
+      <p style={{ fontSize: 12.5, opacity: 0.6, margin: '4px 0 16px' }}>
+        100% ficticia. No se permite usar la imagen ni el nombre de personas reales (docs/07).
+      </p>
+
+      <input placeholder="Nombre" value={f.name} onChange={(e) => set('name', e.target.value)} style={field} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input placeholder="Edad (21+)" type="number" value={f.age} onChange={(e) => set('age', e.target.value)} style={{ ...field, width: 100 }} />
+        <input placeholder="Ocupación" value={f.job} onChange={(e) => set('job', e.target.value)} style={field} />
+      </div>
+
+      <Row label="Personalidad" k="personality" opts={['dulce', 'juguetona', 'intensa', 'timida']} />
+      <Row label="Acento / voz" k="accent" opts={['colombiana', 'mexicana', 'argentina', 'espanola', 'neutra']} />
+      <Row label="Etnia" k="ethnicity" opts={['latina', 'morena', 'blanca', 'afro', 'asiatica']} />
+      <Row label="Cabello" k="hair" opts={['castano_ondulado', 'negro_largo', 'rubio', 'rojo', 'corto']} />
+      <Row label="Cuerpo" k="body" opts={['esbelta', 'curvas', 'atletica', 'voluptuosa']} />
+      <Row label="Estilo" k="style" opts={['casual', 'elegante', 'deportiva', 'coqueta']} />
+
+      <div style={{ fontSize: 12, opacity: 0.65, margin: '4px 0 6px' }}>Rasgos (máx. 4)</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+        {TRAIT_OPTIONS.map((t) => (
+          <button key={t.id} onClick={() => toggleTrait(t.id)} style={{ ...traitChip, ...(f.traits.includes(t.id) ? traitChipOn : {}) }}>{t.label}</button>
+        ))}
+      </div>
+
+      <textarea placeholder="Su historia (opcional): cómo se conocieron, su forma de ser…" value={f.bio}
+        onChange={(e) => set('bio', e.target.value)} style={{ ...field, minHeight: 60, resize: 'vertical' }} />
+
+      {err && <div style={{ color: '#ff6b8a', fontSize: 13, margin: '6px 0' }}>{err}</div>}
+      <button onClick={create} disabled={busy} style={btnPrimary}>{busy ? 'Creando…' : 'Crear y conocerla'}</button>
     </div></Center>
   );
 }
@@ -284,3 +420,7 @@ const inputBar = { display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #
 const textInput = { flex: 1, background: '#1c1828', border: '1px solid #2a2438', borderRadius: 22, padding: '12px 16px', color: '#f4f2f8', fontSize: 15, outline: 'none' };
 const sendBtn = { width: 46, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,#b043ff,#ff4d8d)', color: '#fff', fontSize: 18, cursor: 'pointer' };
 const photoBtn = { width: 46, borderRadius: '50%', border: '1px solid #2a2438', background: '#1c1828', fontSize: 18, cursor: 'pointer' };
+const voiceToggle = { width: 38, height: 38, borderRadius: '50%', border: '1px solid #2a2438', background: '#1c1828', fontSize: 15, cursor: 'pointer' };
+const voiceToggleOn = { background: 'linear-gradient(135deg,#b043ff,#ff4d8d)', border: '1px solid transparent' };
+const playBtn = { marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, opacity: 0.6, padding: 0 };
+const createBtn = { width: '100%', padding: '14px', borderRadius: 14, border: '1px dashed #b043ff', background: 'rgba(176,67,255,.1)', color: '#d9b8ff', fontWeight: 650, fontSize: 15, cursor: 'pointer' };
