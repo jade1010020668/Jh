@@ -7,9 +7,20 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
+import os from 'os';
 
 const DATABASE_URL = process.env.DATABASE_URL;
-const DATA_DIR = process.env.AMARA_DATA_DIR || path.join(process.cwd(), '.data');
+
+// En Netlify/Vercel/Lambda el disco del proyecto es de SOLO LECTURA: escribir
+// en ./.data lanzaría EROFS y el registro fallaría. Ahí usamos /tmp, que sí
+// permite escritura (es efímero: sirve para explorar la app, no para producción
+// — para eso está DATABASE_URL).
+const SERVERLESS = Boolean(
+  process.env.NETLIFY || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+);
+const DATA_DIR =
+  process.env.AMARA_DATA_DIR ||
+  (SERVERLESS ? path.join(os.tmpdir(), 'amara-data') : path.join(process.cwd(), '.data'));
 
 let pgPool = null;
 let pgReady = null;

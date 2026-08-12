@@ -31,7 +31,7 @@ export async function GET() {
       detail: hasDb
         ? 'Postgres conectado: las cuentas y conversaciones se guardan bien'
         : isProd
-          ? 'FALTA: sin DATABASE_URL en producción los datos se pierden entre visitas'
+          ? 'FALTA: sin DATABASE_URL puedes explorar la app, pero las cuentas y conversaciones se borran solas. Pon la base de Neon para que la relación se guarde.'
           : 'Modo local (archivos) — correcto para desarrollo',
     },
     {
