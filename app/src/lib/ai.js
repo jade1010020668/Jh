@@ -20,7 +20,56 @@ const PROVIDERS = {
     apiKeyEnv: 'OPENROUTER_API_KEY',
     model: process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat',
   },
+  // GRATIS — misma llave de OpenRouter, pero usa modelos de costo $0.
+  // El catálogo gratuito cambia seguido, así que NO fijamos un modelo:
+  // se descubre en vivo desde /models y se elige el mejor disponible.
+  gratis: {
+    label: 'Gratis (OpenRouter)',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    apiKeyEnv: 'OPENROUTER_API_KEY',
+    model: null, // se resuelve en runtime
+    free: true,
+  },
 };
+
+// Orden de preferencia entre modelos gratuitos: primero los que mejor
+// conversan en español. Si ninguno está, se toma cualquier gratuito.
+const FREE_PREFERENCE = [
+  'deepseek', 'llama-3.3', 'llama-3.1-70', 'qwen3', 'qwen-2.5-72',
+  'mistral', 'gemma-3', 'gpt-oss', 'nemotron', 'glm',
+];
+
+let freeCache = { model: null, at: 0, list: [] };
+
+/** Descubre modelos gratuitos vivos en OpenRouter (cachea 30 min). */
+export async function resolveFreeModel(apiKey) {
+  const FRESH = 30 * 60 * 1000;
+  if (freeCache.model && Date.now() - freeCache.at < FRESH) return freeCache.model;
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+    });
+    if (!res.ok) throw new Error(`models ${res.status}`);
+    const { data } = await res.json();
+    const free = (data || []).filter((m) => {
+      const p = m.pricing || {};
+      return Number(p.prompt) === 0 && Number(p.completion) === 0;
+    });
+    if (!free.length) throw new Error('sin modelos gratuitos');
+    let pick = null;
+    for (const key of FREE_PREFERENCE) {
+      pick = free.find((m) => m.id.toLowerCase().includes(key));
+      if (pick) break;
+    }
+    pick = pick || free[0];
+    freeCache = { model: pick.id, at: Date.now(), list: free.map((m) => m.id) };
+    return pick.id;
+  } catch {
+    // Fallback si no se puede consultar el catálogo.
+    return process.env.OPENROUTER_FREE_MODEL || 'meta-llama/llama-3.3-70b-instruct:free';
+  }
+}
+
 
 export function availableProviders() {
   return Object.entries(PROVIDERS).map(([id, p]) => ({
@@ -31,7 +80,9 @@ export function availableProviders() {
 }
 
 export function resolveProvider(requested) {
-  const id = PROVIDERS[requested] ? requested : 'deepseek';
+  // Si no se pide nada: prioriza el gratuito cuando hay llave de OpenRouter.
+  let id = PROVIDERS[requested] ? requested : null;
+  if (!id) id = process.env.OPENROUTER_API_KEY ? 'gratis' : 'deepseek';
   const p = PROVIDERS[id];
   return { id, ...p, apiKey: process.env[p.apiKeyEnv] };
 }
@@ -49,6 +100,9 @@ export async function chatCompletion({ providerId, messages, temperature = 0.9, 
     return demoCompletion({ provider: p, messages, started });
   }
 
+  // El plan gratuito resuelve su modelo en vivo (el catálogo cambia seguido).
+  const model = p.free ? await resolveFreeModel(p.apiKey) : p.model;
+
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${p.apiKey}`,
@@ -62,7 +116,7 @@ export async function chatCompletion({ providerId, messages, temperature = 0.9, 
     method: 'POST',
     headers,
     body: JSON.stringify({
-      model: p.model,
+      model,
       messages,
       temperature,
       max_tokens: maxTokens,
@@ -71,6 +125,30 @@ export async function chatCompletion({ providerId, messages, temperature = 0.9, 
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    // Plan gratuito: si el modelo se agotó o desapareció, prueba el siguiente
+    // de la lista descubierta en vez de romperle el chat al usuario.
+    if (p.free && (res.status === 429 || res.status === 404 || res.status === 503)) {
+      const alt = freeCache.list.find((m) => m !== model);
+      if (alt) {
+        freeCache = { ...freeCache, model: alt, at: Date.now() };
+        const retry = await fetch(`${p.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ model: alt, messages, temperature, max_tokens: maxTokens }),
+        });
+        if (retry.ok) {
+          const d = await retry.json();
+          return {
+            text: d.choices?.[0]?.message?.content?.trim() || '',
+            provider: p.label,
+            providerId: p.id,
+            model: alt,
+            latencyMs: Date.now() - started,
+            usage: d.usage || null,
+          };
+        }
+      }
+    }
     throw new Error(`${p.label} respondió ${res.status}: ${body.slice(0, 300)}`);
   }
 
@@ -80,7 +158,7 @@ export async function chatCompletion({ providerId, messages, temperature = 0.9, 
     text,
     provider: p.label,
     providerId: p.id,
-    model: p.model,
+    model,
     latencyMs: Date.now() - started,
     usage: data.usage || null,
   };
