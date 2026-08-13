@@ -1,0 +1,13 @@
+# Netlify publica la app de Amara (carpeta app/), no el HTML estático de la raíz.
+# El runtime de Next.js lo instala Netlify automáticamente al detectar el framework.
+
+[build]
+  base = "app"
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "20"
