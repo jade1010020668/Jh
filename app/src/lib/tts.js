@@ -15,16 +15,27 @@ const ELEVEN_VOICES = {
   neutra: process.env.VOICE_NEUTRA || 'EXAVITQu4vr4xnSDxMaL',
 };
 
-// Parámetros de voz del navegador por personalidad (para el modo demo).
+// Parámetros de voz del navegador por género y personalidad (modo demo).
+// El tono base cambia con el género; la personalidad lo matiza.
 export function browserVoiceParams(character = {}) {
   const p = character.personality || 'dulce';
+  const isMale = character.gender === 'hombre';
+  const base = isMale ? 0.72 : 1.15; // tono base: grave vs agudo
   const map = {
-    dulce: { rate: 0.98, pitch: 1.15 },
-    juguetona: { rate: 1.06, pitch: 1.2 },
-    intensa: { rate: 1.0, pitch: 0.98 },
-    timida: { rate: 0.92, pitch: 1.1 },
+    dulce: { rate: 0.98, shift: 0 },
+    juguetona: { rate: 1.06, shift: 0.05 },
+    intensa: { rate: 1.0, shift: -0.06 },
+    timida: { rate: 0.92, shift: 0.03 },
+    protectora: { rate: 0.95, shift: -0.04 },
+    divertida: { rate: 1.08, shift: 0.06 },
   };
-  return { lang: 'es-ES', ...(map[p] || map.dulce) };
+  const m = map[p] || map.dulce;
+  return {
+    lang: 'es-ES',
+    rate: m.rate,
+    pitch: Math.max(0.4, Math.min(1.6, base + m.shift)),
+    gender: isMale ? 'male' : 'female',
+  };
 }
 
 export function ttsConfigured() {
@@ -40,7 +51,11 @@ export async function synthesize({ text, character }) {
   if (!ttsConfigured()) {
     return { mode: 'browser', text, params: browserVoiceParams(character) };
   }
-  const voiceId = ELEVEN_VOICES[character?.accent] || ELEVEN_VOICES.neutra;
+  // Voz por género (y acento). Configurables por variable de entorno.
+  const isMale = character?.gender === 'hombre';
+  const voiceId = isMale
+    ? (process.env.VOICE_HOMBRE || ELEVEN_VOICES[character?.accent] || ELEVEN_VOICES.neutra)
+    : (ELEVEN_VOICES[character?.accent] || ELEVEN_VOICES.neutra);
   try {
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: 'POST',

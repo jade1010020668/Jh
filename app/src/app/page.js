@@ -309,16 +309,60 @@ function Picker({ traits, setTraits, onPick, customChars, onCreate, onLogout }) 
 }
 
 // Creador de compañera desde cero (docs/06 M3). Guarda en la base de datos.
+// Creador de personaje (docs/06 M3): hombre o mujer, opciones amplias y
+// VISTA PREVIA EN VIVO — la imagen se actualiza mientras eliges.
+const OPCIONES = {
+  mujer: {
+    hair: [['negro_largo','Negro largo'],['castano_ondulado','Castaño ondulado'],['rubio','Rubio'],['rojo','Pelirrojo'],['corto','Corto'],['rizado','Rizado'],['trenzas','Trenzas'],['colorido','De colores']],
+    body: [['esbelta','Esbelta'],['curvas','Con curvas'],['atletica','Atlética'],['voluptuosa','Voluptuosa'],['menuda','Menuda'],['plus','Plus size']],
+    style: [['casual','Casual'],['elegante','Elegante'],['deportiva','Deportiva'],['coqueta','Coqueta'],['oficina','Oficina'],['urbana','Urbana'],['playa','Playa']],
+  },
+  hombre: {
+    hair: [['corto_oscuro','Corto oscuro'],['ondulado','Ondulado'],['largo','Largo'],['rapado','Rapado'],['rizado','Rizado'],['barba','Con barba'],['barba_larga','Barba completa'],['canoso','Canoso']],
+    body: [['atletico','Atlético'],['delgado','Delgado'],['fornido','Fornido'],['normal','Normal'],['fitness','Fitness'],['grande','Grande y alto']],
+    style: [['casual','Casual'],['elegante','Elegante'],['deportivo','Deportivo'],['urbano','Urbano'],['oficina','Oficina'],['motero','Motero'],['playa','Playa']],
+  },
+};
+const ETNIAS = [['latina','Latina'],['morena','Morena'],['blanca','Blanca'],['afro','Afro'],['asiatica','Asiática'],['arabe','Árabe'],['mestiza','Mestiza']];
+const PERSONALIDADES = [['dulce','Dulce'],['juguetona','Juguetona'],['intensa','Intensa'],['timida','Tímida'],['protectora','Protectora'],['divertida','Divertida']];
+const ACENTOS = [['colombiana','Colombiano'],['mexicana','Mexicano'],['argentina','Argentino'],['espanola','Español'],['chilena','Chileno'],['venezolana','Venezolano'],['neutra','Neutro']];
+
 function Creator({ onDone }) {
   const [f, setF] = useState({
-    name: '', age: 25, job: '', emoji: '💜', personality: 'dulce', accent: 'colombiana',
+    gender: 'mujer', name: '', age: 25, job: '', personality: 'dulce', accent: 'colombiana',
     ethnicity: 'latina', hair: 'castano_ondulado', body: 'curvas', style: 'coqueta',
     traits: ['cariñosa'], bio: '',
   });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [loadingPrev, setLoadingPrev] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const toggleTrait = (t) => setF((s) => ({ ...s, traits: s.traits.includes(t) ? s.traits.filter((x) => x !== t) : [...s.traits, t].slice(0, 4) }));
+
+  function setGender(g) {
+    const o = OPCIONES[g];
+    setF((s) => ({ ...s, gender: g, hair: o.hair[0][0], body: o.body[0][0], style: o.style[0][0] }));
+  }
+
+  // Vista previa en vivo: se regenera poco después del último cambio visual.
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      setLoadingPrev(true);
+      try {
+        const res = await fetch('/api/preview', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: f.name,
+            appearance: { gender: f.gender, ethnicity: f.ethnicity, hair: f.hair, body: f.body, style: f.style },
+          }),
+        });
+        const d = await res.json();
+        if (d.image) setPreview(d.image);
+      } catch {} finally { setLoadingPrev(false); }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [f.gender, f.ethnicity, f.hair, f.body, f.style]);
 
   async function create() {
     setErr(''); setBusy(true);
@@ -326,9 +370,9 @@ function Creator({ onDone }) {
       const res = await fetch('/api/characters', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: f.name, age: f.age, job: f.job, emoji: f.emoji, personality: f.personality,
+          name: f.name, gender: f.gender, age: f.age, job: f.job, personality: f.personality,
           accent: f.accent, traits: f.traits, bio: f.bio,
-          appearance: { ethnicity: f.ethnicity, hair: f.hair, body: f.body, style: f.style },
+          appearance: { gender: f.gender, ethnicity: f.ethnicity, hair: f.hair, body: f.body, style: f.style },
         }),
       });
       const data = await res.json();
@@ -337,52 +381,78 @@ function Creator({ onDone }) {
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
-  const Row = ({ label, k, opts }) => (
-    <div style={{ marginBottom: 12 }}>
+  const opts = OPCIONES[f.gender];
+  const Row = ({ label, k, pairs }) => (
+    <div style={{ marginBottom: 13 }}>
       <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {opts.map((o) => (
-          <button key={o} onClick={() => set(k, o)} style={{ ...traitChip, ...(f[k] === o ? traitChipOn : {}) }}>{o}</button>
+        {pairs.map(([v, lbl]) => (
+          <button key={v} onClick={() => set(k, v)} style={{ ...traitChip, ...(f[k] === v ? traitChipOn : {}) }}>{lbl}</button>
         ))}
       </div>
     </div>
   );
 
   return (
-    <Center><div style={{ ...card, maxWidth: 520, textAlign: 'left', maxHeight: '92dvh', overflowY: 'auto' }}>
+    <Center><div style={{ ...card, maxWidth: 900, textAlign: 'left', maxHeight: '94dvh', overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ margin: 0 }}>Crea tu compañera ✨</h2>
+        <h2 style={{ margin: 0 }}>Crea tu personaje ✨</h2>
         <button onClick={() => onDone(null)} style={linkBtn}>Cancelar</button>
       </div>
-      <p style={{ fontSize: 12.5, opacity: 0.6, margin: '4px 0 16px' }}>
-        100% ficticia. No se permite usar la imagen ni el nombre de personas reales (docs/07).
+      <p style={{ fontSize: 12.5, opacity: 0.6, margin: '4px 0 14px' }}>
+        100% ficticio. No se permite usar la imagen ni el nombre de personas reales.
       </p>
 
-      <input placeholder="Nombre" value={f.name} onChange={(e) => set('name', e.target.value)} style={field} />
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input placeholder="Edad (21+)" type="number" value={f.age} onChange={(e) => set('age', e.target.value)} style={{ ...field, width: 100 }} />
-        <input placeholder="Ocupación" value={f.job} onChange={(e) => set('job', e.target.value)} style={field} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) minmax(200px,260px)', gap: 20, alignItems: 'start' }}>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.65, marginBottom: 6 }}>¿Quién quieres que sea?</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button onClick={() => setGender('mujer')} style={{ ...genderBtn, ...(f.gender === 'mujer' ? traitChipOn : {}) }}>👩 Mujer</button>
+            <button onClick={() => setGender('hombre')} style={{ ...genderBtn, ...(f.gender === 'hombre' ? traitChipOn : {}) }}>👨 Hombre</button>
+          </div>
+
+          <input placeholder="Nombre" value={f.name} onChange={(e) => set('name', e.target.value)} style={field} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input placeholder="Edad" type="number" value={f.age} onChange={(e) => set('age', e.target.value)} style={{ ...field, width: 110 }} />
+            <input placeholder="Ocupación" value={f.job} onChange={(e) => set('job', e.target.value)} style={field} />
+          </div>
+
+          <Row label="Etnia" k="ethnicity" pairs={ETNIAS} />
+          <Row label="Cabello" k="hair" pairs={opts.hair} />
+          <Row label="Complexión" k="body" pairs={opts.body} />
+          <Row label="Estilo" k="style" pairs={opts.style} />
+          <Row label="Personalidad" k="personality" pairs={PERSONALIDADES} />
+          <Row label="Acento y voz" k="accent" pairs={ACENTOS} />
+
+          <div style={{ fontSize: 12, opacity: 0.65, margin: '4px 0 6px' }}>Rasgos (máx. 4)</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {TRAIT_OPTIONS.map((t) => (
+              <button key={t.id} onClick={() => toggleTrait(t.id)} style={{ ...traitChip, ...(f.traits.includes(t.id) ? traitChipOn : {}) }}>{t.label}</button>
+            ))}
+          </div>
+
+          <textarea placeholder="Su historia (opcional): cómo se conocieron, su forma de ser…" value={f.bio}
+            onChange={(e) => set('bio', e.target.value)} style={{ ...field, minHeight: 60, resize: 'vertical' }} />
+        </div>
+
+        <div style={previewPanel}>
+          <div style={{ fontSize: 11.5, opacity: 0.6, marginBottom: 8, textAlign: 'center' }}>
+            Vista previa {loadingPrev ? '· actualizando…' : 'en vivo'}
+          </div>
+          <div style={previewFrame}>
+            {preview
+              ? <img src={preview} alt="vista previa" style={{ width: '100%', display: 'block', opacity: loadingPrev ? 0.55 : 1, transition: 'opacity .3s' }} />
+              : <div style={{ padding: 40, textAlign: 'center', opacity: 0.5, fontSize: 13 }}>Elige opciones…</div>}
+          </div>
+          <div style={{ fontSize: 12, textAlign: 'center', marginTop: 10, fontWeight: 600 }}>
+            {f.name || 'Sin nombre'}{f.age ? `, ${f.age}` : ''}
+          </div>
+          <div style={{ fontSize: 11.5, opacity: 0.6, textAlign: 'center' }}>{f.job || '—'}</div>
+        </div>
       </div>
 
-      <Row label="Personalidad" k="personality" opts={['dulce', 'juguetona', 'intensa', 'timida']} />
-      <Row label="Acento / voz" k="accent" opts={['colombiana', 'mexicana', 'argentina', 'espanola', 'neutra']} />
-      <Row label="Etnia" k="ethnicity" opts={['latina', 'morena', 'blanca', 'afro', 'asiatica']} />
-      <Row label="Cabello" k="hair" opts={['castano_ondulado', 'negro_largo', 'rubio', 'rojo', 'corto']} />
-      <Row label="Cuerpo" k="body" opts={['esbelta', 'curvas', 'atletica', 'voluptuosa']} />
-      <Row label="Estilo" k="style" opts={['casual', 'elegante', 'deportiva', 'coqueta']} />
-
-      <div style={{ fontSize: 12, opacity: 0.65, margin: '4px 0 6px' }}>Rasgos (máx. 4)</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-        {TRAIT_OPTIONS.map((t) => (
-          <button key={t.id} onClick={() => toggleTrait(t.id)} style={{ ...traitChip, ...(f.traits.includes(t.id) ? traitChipOn : {}) }}>{t.label}</button>
-        ))}
-      </div>
-
-      <textarea placeholder="Su historia (opcional): cómo se conocieron, su forma de ser…" value={f.bio}
-        onChange={(e) => set('bio', e.target.value)} style={{ ...field, minHeight: 60, resize: 'vertical' }} />
-
-      {err && <div style={{ color: '#ff6b8a', fontSize: 13, margin: '6px 0' }}>{err}</div>}
-      <button onClick={create} disabled={busy} style={btnPrimary}>{busy ? 'Creando…' : 'Crear y conocerla'}</button>
+      {err && <div style={{ color: '#ff6b8a', fontSize: 13, margin: '8px 0' }}>{err}</div>}
+      <button onClick={create} disabled={busy} style={btnPrimary}>{busy ? 'Creando…' : 'Crear y conocerle'}</button>
     </div></Center>
   );
 }
@@ -424,3 +494,6 @@ const voiceToggle = { width: 38, height: 38, borderRadius: '50%', border: '1px s
 const voiceToggleOn = { background: 'linear-gradient(135deg,#b043ff,#ff4d8d)', border: '1px solid transparent' };
 const playBtn = { marginLeft: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, opacity: 0.6, padding: 0 };
 const createBtn = { width: '100%', padding: '14px', borderRadius: 14, border: '1px dashed #b043ff', background: 'rgba(176,67,255,.1)', color: '#d9b8ff', fontWeight: 650, fontSize: 15, cursor: 'pointer' };
+const genderBtn = { flex: 1, padding: '12px', borderRadius: 12, border: '1px solid #2a2438', background: '#1c1828', color: '#f4f2f8', cursor: 'pointer', fontSize: 14, fontWeight: 600 };
+const previewPanel = { background: '#120f1b', border: '1px solid #2a2438', borderRadius: 16, padding: 14, position: 'sticky', top: 0 };
+const previewFrame = { borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2438', background: '#1c1828', minHeight: 120 };

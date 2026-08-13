@@ -127,21 +127,61 @@ async function callModelsLab(p, { prompt, negativePrompt, seed }) {
   return { image: url, kind: 'url' };
 }
 
-// Retrato demo determinístico: mismo seed => mismo "rostro" (mismo color).
-// No es una persona; es un marcador para ver el flujo en la UI.
+// Retrato demo determinístico: mismo seed => misma figura.
+// No es una persona: es un marcador que REFLEJA las elecciones (género, piel,
+// cabello, complexión) para que la vista previa en vivo se sienta real aunque
+// todavía no haya llave de generación de imágenes.
 function demoPortrait(seed = 0, prompt = '') {
-  const hue = seed % 360;
-  const hue2 = (hue + 40) % 360;
+  const p = String(prompt).toLowerCase();
+  const isMale = /\bman\b/.test(p);
+
+  // Tono de piel según la etnia del prompt.
+  const skin =
+    /dark skin/.test(p) ? '#5c3826' :
+    /brown skin/.test(p) ? '#8a5a3b' :
+    /fair skin/.test(p) ? '#e8c4a8' :
+    /olive/.test(p) ? '#c99b6e' :
+    /east asian/.test(p) ? '#e3bf9a' : '#c98d63';
+
+  // Color de cabello.
+  const hair =
+    /blonde/.test(p) ? '#d9ab52' :
+    /red|auburn/.test(p) ? '#8f3b21' :
+    /salt and pepper/.test(p) ? '#9a9a9a' :
+    /pastel|dyed/.test(p) ? `hsl(${seed % 360},70%,62%)` :
+    /brown|wavy brown/.test(p) ? '#5a3620' : '#221a16';
+
+  // Complexión → ancho de hombros.
+  const w =
+    /voluptuous|plus size|big and tall|broad muscular/.test(p) ? 230 :
+    /petite|slim|lean/.test(p) ? 168 : 200;
+
+  const bg = seed % 360;
+  const beard = /beard/.test(p);
+  const longHair = /long|shoulder-length|braided/.test(p);
+
+  // Silueta del cabello: distinta por género y largo.
+  const hairShape = longHair
+    ? `<path d="M136 300 q0 -150 120 -150 q120 0 120 150 l0 190 q-30 -120 -50 -150 q-70 40 -140 0 q-20 30 -50 150 z" fill="${hair}"/>`
+    : isMale
+      ? `<path d="M142 296 q0 -142 114 -142 q114 0 114 142 q-30 -74 -114 -74 q-84 0 -114 74 z" fill="${hair}"/>`
+      : `<path d="M136 300 q0 -150 120 -150 q120 0 120 150 q-34 -86 -120 -86 q-86 0 -120 86 z" fill="${hair}"/>`;
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="768">
   <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="hsl(${hue},60%,55%)"/>
-    <stop offset="1" stop-color="hsl(${hue2},70%,40%)"/>
+    <stop offset="0" stop-color="hsl(${bg},42%,32%)"/>
+    <stop offset="1" stop-color="hsl(${(bg + 45) % 360},48%,20%)"/>
   </linearGradient></defs>
   <rect width="512" height="768" fill="url(#g)"/>
-  <circle cx="256" cy="300" r="120" fill="hsla(${hue},40%,90%,0.9)"/>
-  <rect x="156" y="430" width="200" height="260" rx="100" fill="hsla(${hue},40%,90%,0.9)"/>
-  <text x="256" y="720" font-family="sans-serif" font-size="22" fill="#fff" text-anchor="middle" opacity="0.85">foto demo</text>
-  <text x="256" y="748" font-family="sans-serif" font-size="13" fill="#fff" text-anchor="middle" opacity="0.6">configura NOVITA_API_KEY</text>
+  <rect x="${256 - w / 2}" y="470" width="${w}" height="300" rx="${w / 2.4}" fill="${skin}"/>
+  <ellipse cx="256" cy="316" rx="118" ry="${isMale ? 140 : 134}" fill="${skin}"/>
+  ${beard ? `<path d="M150 330 q6 128 106 140 q100 -12 106 -140 q-40 96 -106 96 q-66 0 -106 -96 z" fill="${hair}" opacity=".92"/>` : ''}
+  ${hairShape}
+  <ellipse cx="212" cy="318" rx="13" ry="9" fill="#2a2018" opacity=".85"/>
+  <ellipse cx="300" cy="318" rx="13" ry="9" fill="#2a2018" opacity=".85"/>
+  <path d="M228 386 q28 20 56 0" stroke="#2a2018" stroke-width="6" fill="none" opacity=".6" stroke-linecap="round"/>
+  <text x="256" y="726" font-family="sans-serif" font-size="19" fill="#fff" text-anchor="middle" opacity="0.9">vista previa · ${isMale ? 'él' : 'ella'}</text>
+  <text x="256" y="750" font-family="sans-serif" font-size="12" fill="#fff" text-anchor="middle" opacity="0.55">conecta NOVITA_API_KEY para fotos reales</text>
 </svg>`;
   const dataUri = 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
   return { image: dataUri, kind: 'dataUri', provider: 'DEMO' };

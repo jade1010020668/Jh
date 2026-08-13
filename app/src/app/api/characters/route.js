@@ -29,23 +29,30 @@ export async function POST(req) {
   // Edad ficticia: piso duro 21+ (nunca apariencia de menor).
   const age = Math.max(21, Math.min(60, parseInt(body.age, 10) || 25));
 
+  const gender = body.gender === 'hombre' ? 'hombre' : 'mujer';
+  const defaults = gender === 'hombre'
+    ? { job: 'arquitecto', emoji: '💙', hair: 'corto_oscuro', body: 'atletico', style: 'casual' }
+    : { job: 'diseñadora', emoji: '💜', hair: 'castano_ondulado', body: 'curvas', style: 'coqueta' };
+
   const character = {
     id: 'c_' + crypto.randomBytes(6).toString('hex'),
     userId: user.id,
     custom: true,
     name,
+    gender,
     age,
-    job: String(body.job || '').slice(0, 40) || 'diseñadora',
-    emoji: body.emoji || '💜',
+    job: String(body.job || '').slice(0, 40) || defaults.job,
+    emoji: body.emoji || defaults.emoji,
     personality: body.personality || 'dulce',
     accent: body.accent || 'neutra',
     relationship: 'conociendose',
     traits: Array.isArray(body.traits) ? body.traits.slice(0, 4) : ['cariñosa'],
     appearance: {
+      gender,
       ethnicity: body.appearance?.ethnicity || 'latina',
-      hair: body.appearance?.hair || 'castano_ondulado',
-      body: body.appearance?.body || 'curvas',
-      style: body.appearance?.style || 'coqueta',
+      hair: body.appearance?.hair || defaults.hair,
+      body: body.appearance?.body || defaults.body,
+      style: body.appearance?.style || defaults.style,
     },
     bio: String(body.bio || '').slice(0, 200),
   };
