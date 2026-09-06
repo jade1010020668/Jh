@@ -132,6 +132,84 @@
     };
   }
 
+  /* --- Netlify: la función /api/sala guarda todo en Netlify Blobs -------
+     No hay canal en vivo, así que la página pregunta cada pocos segundos:
+     rápido justo después de que alguien toca algo, más lento en reposo,
+     y nada mientras la pestaña está oculta. ------------------------------ */
+  function almacenNetlify(base) {
+    const url = base + (base.includes("?") ? "&" : "?") + "sala=" + encodeURIComponent(SALA);
+    let cb = () => {};
+    let temporizador = null;
+    let rapidoHasta = 0;
+    let ultimo = "";
+
+    const normalizar = (crudo) => ({
+      config: { ...CONFIG_INICIAL, ...(crudo.config || {}) },
+      jugadores: crudo.jugadores || {}
+    });
+    const entregar = (crudo) => {
+      const s = JSON.stringify(crudo);
+      if (s === ultimo) return;
+      ultimo = s;
+      cb(normalizar(crudo));
+    };
+    const programar = () => {
+      clearTimeout(temporizador);
+      if (document.hidden) return;
+      temporizador = setTimeout(refrescar, Date.now() < rapidoHasta ? 3000 : 6000);
+    };
+    async function refrescar() {
+      clearTimeout(temporizador);
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        entregar(await r.json());
+        marcarConexion("vivo", "En vivo");
+      } catch {
+        marcarConexion("error", "Reconectando");
+      }
+      programar();
+    }
+    async function enviar(op) {
+      rapidoHasta = Date.now() + 90000;
+      let r;
+      try {
+        r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(op),
+          cache: "no-store"
+        });
+      } catch {
+        avisar("Sin conexión. Revisa tus datos o el wifi.");
+        throw new Error("sin red");
+      }
+      const cuerpo = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        avisar(cuerpo.error ? "No se guardó: " + cuerpo.error : "No se pudo guardar, intenta otra vez");
+        throw new Error(cuerpo.error || "HTTP " + r.status);
+      }
+      entregar(cuerpo);
+      programar();
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) clearTimeout(temporizador);
+      else { rapidoHasta = Date.now() + 30000; refrescar(); }
+    });
+    addEventListener("focus", () => { rapidoHasta = Date.now() + 30000; refrescar(); });
+    addEventListener("pointerdown", () => { rapidoHasta = Date.now() + 60000; }, { passive: true });
+
+    return {
+      tiempoReal: true,
+      escuchar(f) { cb = f; refrescar(); },
+      guardarConfig: (parcial) => enviar({ op: "config", parcial }),
+      guardarJugador: (pid, jugador) => enviar({ op: "jugador", pid, jugador }),
+      borrarJugador: (pid) => enviar({ op: "borrar", pid }),
+      vaciarJugadores: () => enviar({ op: "vaciar" })
+    };
+  }
+
   function marcarConexion(estado, texto) {
     $("conn").dataset.estado = estado;
     $("connTxt").textContent = texto;
@@ -914,6 +992,8 @@
     dibujar();
 
     const fb = CFG.firebase;
+    const api = CFG.api === false ? null : (CFG.api || "/api/sala");
+
     if (fb && fb.databaseURL) {
       try {
         almacen = await almacenFirebase(fb);
@@ -925,7 +1005,15 @@
         $("avisoLocal").hidden = false;
         $("avisoLocal").innerHTML = "<strong>No se pudo conectar.</strong> Revisa la configuración de Firebase en <code>config.js</code>. Mientras tanto, los cambios se guardan solo en este navegador.";
       }
-    } else {
+    } else if (api && /^https?:$/.test(location.protocol)) {
+      /* ¿existe la función de Netlify en este sitio? */
+      try {
+        const r = await fetch(api + "?sala=" + encodeURIComponent(SALA), { cache: "no-store" });
+        if (r.ok && (r.headers.get("content-type") || "").includes("json")) almacen = almacenNetlify(api);
+      } catch {}
+    }
+
+    if (!almacen) {
       almacen = almacenLocal();
       marcarConexion("local", CFG.vistaPrevia ? "Vista previa" : "Modo local");
       $("avisoLocal").hidden = false;

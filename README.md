@@ -13,7 +13,7 @@ enlace que se actualiza solo.
 - Botones para **copiar el código**, el **enlace** y un **resumen listo para WhatsApp**.
 - El admin puede **sacar** a quien no llegó; cualquiera puede **salirse solo**.
 
-Para ponerla en línea y conectar el tiempo real: **[sala/SETUP.md](sala/SETUP.md)**.
+En línea en **https://fabulous-unicorn-235c34.netlify.app/sala/** (Netlify publica solo cada cambio en `main`; los equipos se guardan en Netlify Blobs vía `netlify/functions/sala.mjs`). Detalles y opciones: **[sala/SETUP.md](sala/SETUP.md)**.
 
 ## 🧮 [Calculadora](index.html)
 

@@ -1,137 +1,79 @@
-# Cómo poner la Sala FF en línea
+# Cómo funciona la Sala FF en línea
 
-Son dos cosas: **publicar la página** y **conectar la base de datos** para que
-todos vean lo mismo al mismo tiempo. Toma unos 10 minutos y es gratis.
+## Ya está en línea, sin configurar nada
 
----
+El repo está conectado a **Netlify**. Cada vez que algo llega a `main`, Netlify
+publica el sitio solo, en un minuto:
 
-## Paso 1 — Publicar la página (GitHub Pages)
+```
+https://fabulous-unicorn-235c34.netlify.app/sala/
+```
 
-1. En GitHub, entra al repo → pestaña **Settings** → sección **Pages**.
-2. En *Source* elige **Deploy from a branch**.
-3. Branch: `main`, carpeta: `/ (root)`. Dale **Save**.
-4. Espera 1–2 minutos. Tu sala queda en:
+Ese es el enlace del grupo. Todo lo que la gente escribe (equipos, hora,
+código) se guarda en la nube de Netlify (**Netlify Blobs**) a través de una
+pequeña función (`netlify/functions/sala.mjs`). No hay que crear cuentas ni
+pegar claves en ningún lado.
 
-   ```
-   https://jade1010020668.github.io/jh/sala/
-   ```
+- La etiqueta arriba a la derecha dice **En vivo** cuando la página está
+  hablando con esa función. Si dice **Modo local**, la función no respondió
+  (por ejemplo, abriste el archivo directo desde el celular) y lo que escribas
+  se queda solo en ese navegador.
+- La página pregunta por cambios cada 3 segundos justo después de que alguien
+  toca algo, y cada 6 segundos en reposo. No pregunta mientras está en
+  segundo plano. Para un grupo de amigos eso se siente en tiempo real.
+- El plan gratis de Netlify da 125 000 llamadas de función al mes. Con 12
+  personas mirando la sala un rato al día sobra. Si algún mes se acabara,
+  la sala pasa a modo local hasta el mes siguiente; la opción Firebase de
+  abajo no tiene ese límite.
 
-Ese es el enlace que pegas en el grupo de WhatsApp.
+## Cambiar la clave de admin
 
-> Ya funciona así, pero todavía en **modo local**: cada quien ve solo lo que
-> escribió en su propio celular. Para que se vea en tiempo real, sigue el paso 2.
+En `sala/config.js`, cambia `adminPin: "1234"` por lo que quieras. Con esa
+clave, desde **Admin** puedes cambiar modo, mapa, nombres de equipos, apuesta,
+estado y nota, **vaciar** los equipos y **quitar al líder**. Sacar, anotar y
+mover gente lo haces directo en los equipos.
 
----
-
-## Paso 2 — Conectar el tiempo real (Firebase)
-
-Firebase es de Google y el plan gratis alcanza de sobra para esto.
-
-1. Entra a <https://console.firebase.google.com> y dale **Crear un proyecto**.
-   Ponle el nombre que quieras (ej. `sala-ff`). Puedes desactivar Google Analytics.
-
-2. En el menú de la izquierda: **Compilación → Realtime Database → Crear base de datos**.
-   - Ubicación: la que te sugiera.
-   - Reglas de seguridad: elige **Iniciar en modo de prueba**.
-
-3. Abre la pestaña **Reglas** de la base de datos y déjala así:
-
-   ```json
-   {
-     "rules": {
-       "salas": {
-         ".read": true,
-         ".write": true
-       }
-     }
-   }
-   ```
-
-   Dale **Publicar**.
-
-   > Esto deja la sala abierta: cualquiera que tenga el enlace puede escribir en
-   > ella. Para un grupo de amigos está bien; no guardes ahí nada privado.
-
-4. Vuelve a **Configuración del proyecto** (el engranaje, arriba a la izquierda)
-   → baja hasta **Tus apps** → ícono **`</>`** (Web) → registra la app.
-   Firebase te muestra un bloque parecido a este:
-
-   ```js
-   const firebaseConfig = {
-     apiKey: "AIzaSy...",
-     authDomain: "sala-ff.firebaseapp.com",
-     databaseURL: "https://sala-ff-default-rtdb.firebaseio.com",
-     projectId: "sala-ff",
-     storageBucket: "sala-ff.appspot.com",
-     messagingSenderId: "123456789",
-     appId: "1:123456789:web:abc123"
-   };
-   ```
-
-   > Si no aparece `databaseURL`, cópiala de la pantalla de Realtime Database
-   > (es la URL que sale arriba de la tabla). Sin ella no funciona.
-
-5. Abre `sala/config.js` en el repo y pega esos datos:
-
-   ```js
-   window.FF_CONFIG = {
-     firebase: {
-       apiKey: "AIzaSy...",
-       authDomain: "sala-ff.firebaseapp.com",
-       databaseURL: "https://sala-ff-default-rtdb.firebaseio.com",
-       projectId: "sala-ff",
-       appId: "1:123456789:web:abc123"
-     },
-     adminPin: "TU_CLAVE_AQUI",
-     salaPorDefecto: "principal"
-   };
-   ```
-
-6. Guarda, haz commit y sube. Al minuto, la etiqueta de arriba a la derecha de
-   la página cambia de **Modo local** a **En vivo**.
-
----
-
-## Paso 3 — Tu clave de admin
-
-Cambia `adminPin` en `config.js` por algo que solo sepas tú. Con esa clave
-entras al **panel del administrador** y puedes:
-
-- poner fecha y hora de la partida,
-- cambiar el modo (1v1, 2v2, 4v4, 6v6, 12v12),
-- escribir el **código y la contraseña de la sala**,
-- ponerle nombre a cada equipo,
-- dejar una nota y la apuesta,
-- **sacar** a cualquiera y **vaciar** los equipos.
-
-> La clave viaja dentro de la página, así que alguien con ganas podría leerla en
-> el código. Sirve para que nadie toque la sala por accidente, no como candado
-> de verdad.
-
----
+> La clave viaja dentro de la página: sirve para que nadie toque la sala por
+> accidente, no como candado de verdad.
 
 ## Varias salas a la vez
 
-Agrégale `?sala=` al enlace y tienes salas independientes:
+Agrégale `?sala=` al enlace:
 
 ```
-https://jade1010020668.github.io/jh/sala/?sala=viernes
-https://jade1010020668.github.io/jh/sala/?sala=torneo
+https://fabulous-unicorn-235c34.netlify.app/sala/?sala=viernes
+https://fabulous-unicorn-235c34.netlify.app/sala/?sala=torneo
 ```
 
-Cada una guarda sus propios equipos y su propio código.
+Cada una guarda sus propios equipos, hora y código.
 
----
+## Opcional: Firebase (tiempo real instantáneo)
+
+Si quieres que los cambios lleguen al instante en vez de cada pocos segundos,
+o te preocupa el límite mensual de Netlify:
+
+1. Entra a <https://console.firebase.google.com> → **Crear proyecto**.
+2. **Compilación → Realtime Database → Crear base de datos** → modo de prueba.
+3. Pestaña **Reglas**:
+
+   ```json
+   { "rules": { "salas": { ".read": true, ".write": true } } }
+   ```
+
+4. ⚙️ **Configuración del proyecto → Tus apps → `</>`** y copia el bloque
+   `firebaseConfig`.
+5. Pégalo en `sala/config.js` en `firebase: { ... }` (incluye `databaseURL`).
+
+Con `firebase` configurado, la app lo usa en vez de la función de Netlify.
 
 ## Preguntas rápidas
 
 **¿Cada quien necesita cuenta?** No. Entran al enlace, escriben su nombre y ya.
 
-**¿Puedo salirme solo?** Sí. Tu propio slot tiene un botón **Salir**; no
-necesitas al admin.
+**¿Quién manda?** Quien pone el **código de la sala** queda como líder y puede
+sacar, anotar y mover gente. El admin siempre puede.
 
-**¿Y si alguien no llegó?** El admin le da **Sacar** y el cupo queda libre al
-instante para todos.
+**¿Puedo salirme solo?** Sí, tu propio slot tiene **Salir**.
 
-**¿Cómo lo paso al grupo?** El botón **Copiar para WhatsApp** arma el mensaje
-completo (fecha, código, clave y los dos equipos) listo para pegar.
+**¿Cómo lo paso al grupo?** **Texto WhatsApp** copia el mensaje completo;
+**Foto equipos** genera una imagen para la galería o para mandar directo.
