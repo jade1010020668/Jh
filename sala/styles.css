@@ -208,7 +208,8 @@ main {
 .estado[data-estado="cerrada"] { color: var(--tenue); background: rgb(111 126 155 / 0.1); }
 
 /* cuenta regresiva: el dato más grande porque manda la hora */
-.cuenta { display: flex; flex-direction: column; gap: 2px; }
+.cuenta { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.cuenta .btn { margin-top: 10px; }
 .cuenta-label {
   font-size: 0.7rem;
   letter-spacing: 0.18em;
@@ -256,10 +257,9 @@ main {
 /* líder: quien puso el código manda */
 .lider {
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: "label boton" "nombre boton" "ayuda boton";
-  align-items: center;
-  gap: 2px 16px;
+  grid-template-columns: 1fr;
+  grid-template-areas: "label" "nombre" "ayuda";
+  gap: 2px;
   padding: 12px 16px;
   background: rgb(255 197 61 / 0.06);
   border: 1px solid rgb(255 197 61 / 0.28);
@@ -268,11 +268,6 @@ main {
 .lider-nombre { grid-area: nombre; font-family: "Chakra Petch", sans-serif; font-size: 1.15rem; font-weight: 700; overflow-wrap: anywhere; }
 .lider-nombre[data-nadie] { color: var(--tenue); font-weight: 500; }
 .lider-ayuda { grid-area: ayuda; font-size: 0.82rem; color: var(--texto-sec); }
-.lider .btn { grid-area: boton; }
-@media (max-width: 560px) {
-  .lider { grid-template-columns: 1fr; grid-template-areas: "label" "nombre" "ayuda" "boton"; }
-  .lider .btn { margin-top: 8px; }
-}
 
 .btn.chico { padding: 9px 14px; font-size: 0.76rem; }
 

@@ -168,7 +168,7 @@
   }).format(fecha));
 
   function textoCuenta(fecha) {
-    if (!fecha) return { grande: "Sin hora todavía", chica: "El admin la pone en un momento" };
+    if (!fecha) return { grande: "Sin hora todavía", chica: "Cualquiera la puede poner aquí abajo" };
 
     const largo = fechaLarga(fecha);
     let ms = fecha.getTime() - Date.now();
@@ -258,7 +258,7 @@
       lider.textContent = "Nadie todavía";
       lider.dataset.nadie = "1";
     }
-    $("btnCodigo").textContent = c.codigo ? "Cambiar el código" : "Poner el código";
+    $("btnCodigo").textContent = c.codigo ? "Cambiar hora o código" : "Poner hora y código";
 
     const nota = $("dNota");
     nota.textContent = c.nota || "";
@@ -565,33 +565,45 @@
 
   function abrirCodigo() {
     const c = datos.config;
-    $("cNombre").value = miNombre();
+    $("cCuando").value = c.cuando || "";
     $("cCodigo").value = c.codigo || "";
     $("cClave").value = c.clave || "";
+    $("cNombre").value = miNombre();
     $("errCodigo").hidden = true;
     $("dlgCodigo").showModal();
   }
 
   async function guardarCodigo() {
     const err = $("errCodigo");
-    const nombre = $("cNombre").value.trim().replace(/\s+/g, " ");
+    const c = datos.config;
+    const cuando = $("cCuando").value;
     const codigo = $("cCodigo").value.trim();
     const clave = $("cClave").value.trim();
+    const nombre = $("cNombre").value.trim().replace(/\s+/g, " ");
 
-    if (!nombre) { err.textContent = "Pon tu nombre para que sepan quién manda."; err.hidden = false; return; }
-    if (!codigo) { err.textContent = "Falta el código de la sala."; err.hidden = false; return; }
+    const cambiaCodigo = codigo !== (c.codigo || "") || clave !== (c.clave || "");
+    if (cambiaCodigo && codigo && !nombre) {
+      err.textContent = "Pon tu nombre: quien pone el código queda como líder.";
+      err.hidden = false;
+      return;
+    }
 
-    localStorage.setItem("ff:nombre", nombre);
-    await almacen.guardarConfig({ codigo, clave, liderId: miId, liderNombre: nombre, actualizado: Date.now() });
+    const cambios = { cuando, codigo, clave, actualizado: Date.now() };
+    if (cambiaCodigo && codigo) {
+      cambios.liderId = miId;
+      cambios.liderNombre = nombre;
+      localStorage.setItem("ff:nombre", nombre);
+    }
+    await almacen.guardarConfig(cambios);
 
     /* si el líder ya está anotado con otro nombre, lo emparejamos */
     const yo = miJugador();
-    if (yo && yo.nombre !== nombre && !nombreRepetido(nombre, miId)) {
+    if (cambiaCodigo && codigo && yo && yo.nombre !== nombre && !nombreRepetido(nombre, miId)) {
       await almacen.guardarJugador(miId, { ...yo, nombre });
     }
 
     $("dlgCodigo").close();
-    avisar("Código guardado. Ahora tú mandas en la sala.");
+    avisar(cambiaCodigo && codigo ? "Guardado. Ahora tú mandas en la sala." : "Hora guardada");
   }
 
   /* =============================================================== admin */
@@ -615,14 +627,11 @@
 
   function abrirAdmin() {
     const c = datos.config;
-    $("aCuando").value = c.cuando || "";
     $("aEstado").value = c.estado || "abierta";
     $("aModo").value = String(cupoDe(c));
     $("aModalidad").value = c.modalidad || "Sala personalizada";
     $("aMapa").value = c.mapa || "Bermuda";
     $("aApuesta").value = c.apuesta || "";
-    $("aCodigo").value = c.codigo || "";
-    $("aClave").value = c.clave || "";
     $("aNombre1").value = c.nombre1 || "";
     $("aNombre2").value = c.nombre2 || "";
     $("aNota").value = c.nota || "";
@@ -632,34 +641,21 @@
   }
 
   async function guardarAdmin() {
-    const c = datos.config;
-    const codigo = $("aCodigo").value.trim();
-    const clave = $("aClave").value.trim();
-
     const cambios = {
-      cuando: $("aCuando").value,
       estado: $("aEstado").value,
       modo: Number($("aModo").value) || 6,
       modalidad: $("aModalidad").value,
       mapa: $("aMapa").value,
       apuesta: $("aApuesta").value.trim(),
-      codigo,
-      clave,
       nombre1: $("aNombre1").value.trim() || "Equipo 1",
       nombre2: $("aNombre2").value.trim() || "Equipo 2",
       nota: $("aNota").value.trim(),
       actualizado: Date.now()
     };
-
     if ($("aQuitarLider").checked) {
       cambios.liderId = "";
       cambios.liderNombre = "";
-    } else if (codigo && codigo !== c.codigo) {
-      /* el admin que pone código nuevo también toma el mando */
-      cambios.liderId = miId;
-      cambios.liderNombre = miNombre() || "Admin";
     }
-
     await almacen.guardarConfig(cambios);
     $("dlgAdmin").close();
     avisar("Sala actualizada");

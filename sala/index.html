@@ -52,6 +52,7 @@
       <span class="cuenta-label">Arranca</span>
       <strong class="cuenta-valor" id="cuentaValor">Sin fecha</strong>
       <span class="cuenta-fecha" id="cuentaFecha"></span>
+      <button type="button" class="btn chico" id="btnCodigo">Poner hora y código</button>
     </div>
 
     <dl class="datos">
@@ -64,8 +65,7 @@
     <div class="lider" id="lider">
       <span class="lider-label">Líder de la sala</span>
       <strong class="lider-nombre" id="dLider">Nadie todavía</strong>
-      <span class="lider-ayuda">Quien pone el código manda: puede sacar, agregar y mover gente.</span>
-      <button type="button" class="btn chico" id="btnCodigo">Poner el código</button>
+      <span class="lider-ayuda">Quien pone el código manda: puede sacar, agregar y mover gente. El admin siempre puede.</span>
     </div>
 
     <div class="claves">
@@ -167,23 +167,24 @@
 <!-- ==================== MODAL: CÓDIGO / LÍDER ==================== -->
 <dialog id="dlgCodigo" class="dlg">
   <form method="dialog" id="formCodigo">
-    <h2 class="dlg-titulo">Poner el código de la sala</h2>
-    <p class="dlg-texto">Quien pone el código queda como <strong>líder</strong>: puede sacar, agregar y mover jugadores hasta que otro ponga un código nuevo.</p>
+    <h2 class="dlg-titulo">Hora y código de la partida</h2>
+    <p class="dlg-texto">Cualquiera puede ponerlos. Quien pone el <strong>código</strong> queda como líder: puede sacar, agregar y mover jugadores hasta que otro ponga un código nuevo.</p>
 
-    <label class="campo">
-      <span>Tu nombre</span>
-      <input type="text" id="cNombre" maxlength="22" required autocomplete="off" placeholder="Ej: Pato" />
-    </label>
+    <label class="campo"><span>Fecha y hora</span><input type="datetime-local" id="cCuando" /></label>
     <div class="rejilla">
-      <label class="campo"><span>Código de sala</span><input type="text" id="cCodigo" maxlength="24" inputmode="numeric" required placeholder="Ej: 68429315" /></label>
+      <label class="campo"><span>Código de sala</span><input type="text" id="cCodigo" maxlength="24" inputmode="numeric" placeholder="Cuando la crees" /></label>
       <label class="campo"><span>Contraseña</span><input type="text" id="cClave" maxlength="24" placeholder="Si tiene" /></label>
     </div>
+    <label class="campo">
+      <span>Tu nombre <small>(si pones el código)</small></span>
+      <input type="text" id="cNombre" maxlength="22" autocomplete="off" placeholder="Ej: Pato" />
+    </label>
 
     <p class="dlg-error" id="errCodigo" hidden></p>
 
     <div class="dlg-acciones">
       <button type="button" class="btn ghost" data-cerrar>Cancelar</button>
-      <button type="submit" class="btn primario">Guardar y tomar el mando</button>
+      <button type="submit" class="btn primario">Guardar</button>
     </div>
   </form>
 </dialog>
@@ -191,10 +192,10 @@
 <!-- ==================== MODAL: ADMIN ==================== -->
 <dialog id="dlgAdmin" class="dlg">
   <form method="dialog" id="formAdmin">
-    <h2 class="dlg-titulo">Panel del administrador</h2>
+    <h2 class="dlg-titulo">Ajustes de la sala (admin)</h2>
+    <p class="dlg-texto">Como admin puedes sacar, anotar y mover gente directamente en los equipos, sin poner el código. Aquí van los ajustes generales.</p>
 
     <div class="rejilla">
-      <label class="campo"><span>Fecha y hora</span><input type="datetime-local" id="aCuando" /></label>
       <label class="campo"><span>Estado</span>
         <select id="aEstado">
           <option value="abierta">Abierta — pueden entrar</option>
@@ -232,8 +233,6 @@
         </select>
       </label>
       <label class="campo"><span>Apuesta</span><input type="text" id="aApuesta" maxlength="40" placeholder="Ej: 5k cada uno" /></label>
-      <label class="campo"><span>Código de sala</span><input type="text" id="aCodigo" maxlength="24" inputmode="numeric" placeholder="Ej: 68429315" /></label>
-      <label class="campo"><span>Contraseña de sala</span><input type="text" id="aClave" maxlength="24" placeholder="Ej: 1234" /></label>
       <label class="campo"><span>Nombre del equipo 1</span><input type="text" id="aNombre1" maxlength="22" placeholder="Equipo 1" /></label>
       <label class="campo"><span>Nombre del equipo 2</span><input type="text" id="aNombre2" maxlength="22" placeholder="Equipo 2" /></label>
     </div>
