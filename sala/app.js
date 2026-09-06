@@ -931,8 +931,11 @@
       }
     } else {
       almacen = almacenLocal();
-      marcarConexion("local", "Modo local");
+      marcarConexion("local", CFG.vistaPrevia ? "Vista previa" : "Modo local");
       $("avisoLocal").hidden = false;
+      if (CFG.vistaPrevia) {
+        $("avisoLocal").innerHTML = "<strong>Vista previa.</strong> Tócala y pruébala con confianza: lo que escribas aquí solo lo ves tú. La versión de verdad, con todo el grupo en tiempo real, es tu enlace de GitHub Pages.";
+      }
     }
 
     almacen.escuchar((nuevos) => { datos = nuevos; dibujar(); });
