@@ -72,7 +72,7 @@ h1, h2, .estado, .clave-valor, .cuenta-valor, .equipo-cupo, .btn, .panel-titulo 
 .top {
   max-width: var(--ancho);
   margin: 0 auto;
-  padding: clamp(18px, 4vw, 30px) var(--paso) 0;
+  padding: calc(clamp(18px, 4vw, 30px) + env(safe-area-inset-top)) var(--paso) 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -158,7 +158,7 @@ h1, h2, .estado, .clave-valor, .cuenta-valor, .equipo-cupo, .btn, .panel-titulo 
 main {
   max-width: var(--ancho);
   margin: 0 auto;
-  padding: clamp(18px, 4vw, 28px) var(--paso) 60px;
+  padding: clamp(18px, 4vw, 28px) var(--paso) calc(60px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: clamp(16px, 3vw, 22px);
@@ -252,6 +252,29 @@ main {
   font-size: 1.02rem;
   overflow-wrap: anywhere;
 }
+
+/* líder: quien puso el código manda */
+.lider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "label boton" "nombre boton" "ayuda boton";
+  align-items: center;
+  gap: 2px 16px;
+  padding: 12px 16px;
+  background: rgb(255 197 61 / 0.06);
+  border: 1px solid rgb(255 197 61 / 0.28);
+}
+.lider-label { grid-area: label; font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--oro); font-weight: 600; }
+.lider-nombre { grid-area: nombre; font-family: "Chakra Petch", sans-serif; font-size: 1.15rem; font-weight: 700; overflow-wrap: anywhere; }
+.lider-nombre[data-nadie] { color: var(--tenue); font-weight: 500; }
+.lider-ayuda { grid-area: ayuda; font-size: 0.82rem; color: var(--texto-sec); }
+.lider .btn { grid-area: boton; }
+@media (max-width: 560px) {
+  .lider { grid-template-columns: 1fr; grid-template-areas: "label" "nombre" "ayuda" "boton"; }
+  .lider .btn { margin-top: 8px; }
+}
+
+.btn.chico { padding: 9px 14px; font-size: 0.76rem; }
 
 /* códigos: lo único que se copia, así que sí van destacados */
 .claves { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
@@ -351,6 +374,7 @@ main {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
+  min-height: 56px;
   background: var(--fondo-alto);
   border: 1px solid var(--borde);
   min-width: 0;
@@ -359,7 +383,34 @@ main {
   background: transparent;
   border-style: dashed;
   border-color: var(--borde-vivo);
+  cursor: text;
 }
+.slot[data-vacio]:focus-within { border-style: solid; border-color: var(--lado, var(--ember)); }
+
+/* campo en blanco donde uno escribe su nombre (input.slot-input le gana al estilo genérico de inputs) */
+input.slot-input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--texto);
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid var(--borde);
+  padding: 8px 10px;
+  outline: none;
+}
+input.slot-input:focus { border-color: var(--lado, var(--ember)); background: rgb(255 255 255 / 0.06); }
+.slot-input::placeholder { color: var(--tenue); font-weight: 400; }
+
+.slot-libre {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tenue);
+  white-space: nowrap;
+}
+.slot[data-vacio]:focus-within .slot-libre { color: var(--lado, var(--ember)); }
 .slot[data-yo] {
   border-color: var(--lado, var(--ember));
   box-shadow: inset 0 0 0 1px var(--lado, var(--ember));
@@ -397,9 +448,14 @@ main {
 }
 .etiqueta[data-tipo="yo"] { color: var(--oro); border-color: rgb(255 197 61 / 0.5); background: rgb(255 197 61 / 0.1); }
 .etiqueta[data-tipo="exceso"] { color: var(--oro); border-color: rgb(255 197 61 / 0.5); }
+.etiqueta[data-tipo="lider"] { color: #1A1204; background: var(--oro); border-color: var(--oro); }
+.etiqueta[data-tipo="manual"] { color: var(--tenue); border-style: dashed; }
+
+.slot-botones { display: flex; gap: 6px; }
 
 .slot-accion {
   appearance: none;
+  min-height: 36px;
   background: transparent;
   border: 1px solid var(--borde-vivo);
   color: var(--texto-sec);
@@ -523,6 +579,7 @@ main {
 input[type="text"], input[type="datetime-local"], select, textarea {
   width: 100%;
   font: inherit;
+  font-size: 16px;
   color: var(--texto);
   background: var(--fondo-alto);
   border: 1px solid var(--borde-vivo);
@@ -558,6 +615,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 .opcion:has(:checked) { border-color: var(--lado); box-shadow: inset 0 0 0 1px var(--lado); color: var(--lado); }
 .opcion:has(:disabled) { opacity: 0.45; cursor: not-allowed; }
 
+.dlg-texto { margin: 0; color: var(--texto-sec); font-size: 0.94rem; }
+.dlg-texto strong { color: var(--oro); }
+
+.campo-check { flex-direction: row; align-items: center; gap: 10px; }
+.campo-check input { width: 18px; height: 18px; accent-color: var(--ember); margin: 0; }
+.campo-check > span { font-size: 0.9rem; letter-spacing: 0; text-transform: none; color: var(--texto); }
+
 .dlg-error {
   margin: 0;
   padding: 10px 13px;
@@ -574,7 +638,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 .aviso-copia {
   position: fixed;
   left: 50%;
-  bottom: 26px;
+  bottom: calc(26px + env(safe-area-inset-bottom));
   transform: translate(-50%, 18px);
   z-index: 50;
   padding: 11px 20px;
@@ -599,8 +663,38 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .briefing { clip-path: none; }
-  .acciones .btn { flex: 1 1 100%; }
   .dlg-acciones { flex-direction: column-reverse; }
+  .dlg { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow: auto; }
+
+  .acciones {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 0 calc(var(--paso) * -1);
+    padding: 12px var(--paso) calc(12px + env(safe-area-inset-bottom));
+    background: rgb(10 14 23 / 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--borde);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .acciones .btn { padding: 12px 8px; font-size: 0.72rem; letter-spacing: 0.06em; }
+  .acciones .btn.primario { grid-column: 1 / -1; padding: 15px; font-size: 0.95rem; }
+
+  .pie { flex-direction: column; align-items: flex-start; }
+  .top-actions { width: 100%; justify-content: space-between; }
+
+  .slot { grid-template-columns: 22px 1fr auto; gap: 8px; padding: 8px 10px; }
+  .slot-accion { padding: 4px 8px; font-size: 0.7rem; letter-spacing: 0.04em; }
+  .slot-botones { flex-direction: column; gap: 4px; }
+}
+
+/* toque, no mouse: nada de hover que se quede pegado */
+@media (hover: none) {
+  .btn:hover, .clave:hover, .slot-accion:hover { border-color: var(--borde-vivo); color: inherit; background: inherit; }
+  .btn.primario:hover { filter: none; color: #180A02; }
 }
