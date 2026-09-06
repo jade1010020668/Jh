@@ -136,7 +136,7 @@ function setFieldMode(role, mode) {
   const sel = els[role], txt = els[role + 'Text'], back = els[role + 'Back'];
   if (mode === 'text') {
     sel.hidden = true; sel.disabled = true;
-    txt.hidden = false; back.hidden = false;
+    txt.hidden = false; back.hidden = !!(state.league && state.league.freeTextOnly); // sin lista, sin "volver"
   } else {
     sel.hidden = false; sel.disabled = false;
     txt.hidden = true; txt.value = ''; back.hidden = true;
@@ -196,6 +196,7 @@ function onTeamSelectChange(role) {
 }
 
 function onTeamBack(role) {
+  if (state.league && state.league.freeTextOnly) return;
   setFieldMode(role, 'select');
   if (state.league && !state.league.freeTextOnly) {
     const exclude = role === 'away' ? getTeamValue('home') : undefined;
@@ -234,7 +235,7 @@ function clearOdds() {
 }
 
 els.btnClear.addEventListener('click', () => {
-  cancelInFlight();
+  cancelInFlight('silent');
   els.league.value = '';
   onLeagueChange();
   els.matchDate.value = '';
@@ -430,9 +431,9 @@ Breve justificación (1-2 frases).
 ---
 **Recordatorio:** Este pronóstico es un análisis estadístico, no una garantía. Apuesta con responsabilidad.
 
-BLOQUE DE DATOS PARA LA APP (obligatorio, al FINAL, después del recordatorio): un bloque de código con la etiqueta json que contenga EXACTAMENTE este objeto (números decimales entre 0 y 1; p_home+p_draw+p_away = 1; usa null si un dato no existe):
+BLOQUE DE DATOS PARA LA APP (obligatorio, al FINAL, después del recordatorio): un bloque de código con la etiqueta json y EXACTAMENTE estas claves. Los valores del ejemplo son SOLO ilustrativos: reemplázalos por TUS estimaciones. Decimales entre 0 y 1; p_home+p_draw+p_away = 1. NUNCA escribas 0 o 1 exactos en p_over25/p_btts: si no puedes estimarlos, usa null. En odds_found pon null en cada cuota que no hayas encontrado:
 \`\`\`json
-{"p_home":0.00,"p_draw":0.00,"p_away":0.00,"p_over25":0.00,"p_btts":0.00,"score":"X-Y","odds_found":{"bookmaker":"nombre o null","home":null,"draw":null,"away":null,"over25":null,"under25":null,"btts_yes":null,"btts_no":null}}
+{"p_home":0.45,"p_draw":0.28,"p_away":0.27,"p_over25":0.52,"p_btts":0.50,"score":"1-1","odds_found":{"bookmaker":"nombre o null","home":null,"draw":null,"away":null,"over25":null,"under25":null,"btts_yes":null,"btts_no":null}}
 \`\`\``;
 
 const COLOMBIA_CONTEXT = `
@@ -592,36 +593,48 @@ function extractModelJson(text) {
     try { json = JSON.parse(last[1]); } catch { json = null; }
     cleanText = text.slice(0, last.index) + text.slice(last.index + last[0].length);
   }
-  // Respaldo: leer 1X2 del texto si el JSON no llegó
-  if (!json) {
-    const g = (label) => { const m = text.match(new RegExp(label + '[^\\d]{0,20}(\\d{1,3})\\s*%', 'i')); return m ? parseInt(m[1], 10) / 100 : null; };
+  // Respaldo: leer el 1X2 del texto si el JSON no llegó o no es utilizable.
+  // Regex anclado al inicio de línea para no capturar un "Empate ... 40%" de otra sección.
+  let probs = sanitizeProbs(json);
+  if (!probs) {
+    const g = (label) => { const m = text.match(new RegExp('^\\s*[-*]?\\s*' + label + '\\s*:?[^\\d\\n]{0,20}(\\d{1,3})\\s*%', 'im')); return m ? parseInt(m[1], 10) / 100 : null; };
     const h = g('Victoria local'), d = g('Empate'), a = g('Victoria visitante');
-    if (h != null && d != null && a != null) json = { p_home: h, p_draw: d, p_away: a, p_over25: g('probabilidad Over'), p_btts: g('probabilidad S[ií]'), odds_found: null };
+    if (h != null && d != null && a != null) probs = sanitizeProbs({ p_home: h, p_draw: d, p_away: a, p_over25: g('.*probabilidad Over'), p_btts: g('.*probabilidad S[ií]') });
   }
-  const probs = sanitizeProbs(json);
   return { probs, oddsFound: json?.odds_found || null, score: json?.score || null, cleanText: cleanText.trimEnd() };
 }
 
-function num01(v) {
+function numRaw(v) {
   if (v === null || v === undefined || v === '') return null; // Number(null) === 0: evitar falso 0%
   const n = Number(v);
-  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : null;
+  return Number.isFinite(n) ? n : null;
 }
+function num01(v) { const n = numRaw(v); return n != null && n >= 0 && n <= 1 ? n : null; }
 function sanitizeProbs(j) {
   if (!j) return null;
-  let h = num01(j.p_home), d = num01(j.p_draw), a = num01(j.p_away);
+  let h = numRaw(j.p_home), d = numRaw(j.p_draw), a = numRaw(j.p_away), over = numRaw(j.p_over25), btts = numRaw(j.p_btts);
+  // Si el modelo usó escala 0-100, la pasamos a 0-1
+  const s100 = (h ?? 0) + (d ?? 0) + (a ?? 0);
+  if (s100 > 85 && s100 < 115) {
+    h = h != null ? h / 100 : null; d = d != null ? d / 100 : null; a = a != null ? a / 100 : null;
+    if (over != null && over > 1) over /= 100;
+    if (btts != null && btts > 1) btts /= 100;
+  }
+  h = num01(h); d = num01(d); a = num01(a);
   if (h != null && d != null && a != null) {
     const s = h + d + a;
     if (s > 0.85 && s < 1.15) { h /= s; d /= s; a /= s; } else { h = d = a = null; }
   } else { h = d = a = null; }
-  const over = num01(j.p_over25), btts = num01(j.p_btts);
+  // Over/BTTS: un 0 o 1 exacto suele ser "no sé" del modelo, no una probabilidad → se descarta
+  const band = (x) => { x = num01(x); return x != null && x >= 0.02 && x <= 0.98 ? x : null; };
+  over = band(over); btts = band(btts);
   if (h == null && over == null && btts == null) return null;
   return { home: h, draw: d, away: a, over25: over, btts: btts };
 }
 
 // ===== Matemática de valor =====
 function readOdd(input) { const v = parseFloat(String(input.value).replace(',', '.')); return Number.isFinite(v) && v > 1 ? v : null; }
-function readFound(v) { const n = parseFloat(v); return Number.isFinite(n) && n > 1 ? n : null; }
+function readFound(v) { if (v === null || v === undefined) return null; const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) && n > 1 ? n : null; }
 
 function getUserOdds() {
   return {
@@ -687,7 +700,8 @@ function computeValueRows(probs, userOdds, oddsFound, bankroll) {
     rows.push({
       label: m.label, p: m.p, fairOdds: m.p > 0 ? 1 / m.p : null, odds: sel?.odds || null, src: sel?.src || null,
       fair, ev, edge, verdict, stakePct,
-      stakeCop: bankroll ? Math.round((bankroll * stakePct) / 1000) * 1000 : null
+      // Redondeo a centenas con mínimo $100 para que una banca pequeña no muestre "$0" con veredicto VALOR
+      stakeCop: bankroll > 0 ? (stakePct > 0 ? Math.max(100, Math.round((bankroll * stakePct) / 100) * 100) : 0) : null
     });
   }
   return { rows, overround1x2: groups['1x2'].overround };
@@ -699,7 +713,7 @@ const pct = (x) => (x * 100).toFixed(0) + '%';
 const pct1 = (x) => (x >= 0 ? '+' : '') + (x * 100).toFixed(1) + '%';
 const cop = (n) => '$' + Math.round(n).toLocaleString('es-CO');
 
-function renderDecision({ probs, oddsFound, bankroll, bookmaker }) {
+function renderDecision({ probs, oddsFound, bankroll, bookmaker, userOdds: givenOdds }) {
   const box = els.decision;
   box.innerHTML = '';
   box.hidden = false;
@@ -712,7 +726,7 @@ function renderDecision({ probs, oddsFound, bankroll, bookmaker }) {
     return;
   }
 
-  const userOdds = getUserOdds();
+  const userOdds = givenOdds || getUserOdds(); // al reabrir el historial se usan las cuotas de ESE partido
   const hasUser = Object.values(userOdds).some(Boolean);
   const { rows, overround1x2 } = computeValueRows(probs, userOdds, oddsFound, bankroll);
   const withOdds = rows.filter(r => r.odds);
@@ -788,7 +802,8 @@ async function generatePrediction(league, home, away, dateStr) {
   const token = ++state.requestToken;
   const controller = new AbortController();
   state.controller = controller;
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let timedOut = false;
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, REQUEST_TIMEOUT_MS);
 
   updateState();
   els.resultCard.classList.remove('visible');
@@ -798,7 +813,7 @@ async function generatePrediction(league, home, away, dateStr) {
   state.currentDecision = '';
   saveBank();
 
-  const today = new Date().toLocaleDateString('es-CO');
+  const today = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); // sin ambigüedad día/mes
   const fechaTxt = dateStr
     ? `El partido a analizar es el del ${new Date(dateStr + 'T00:00:00').toLocaleDateString('es-CO')}. Si no hay partido entre estos equipos en esa fecha, dilo y no inventes uno.`
     : 'Analiza el próximo enfrentamiento programado entre estos equipos (o el más reciente si no hay uno próximo).';
@@ -827,14 +842,15 @@ Busca en la web información actualizada y sigue exactamente el formato Markdown
   showStatus('Buscando estadísticas y cuotas en la web y analizando…', 'loading', { cancelable: true });
 
   let displayText = '';
-  let renderQueued = false;
+  let renderTimer = null;
+  let streamDone = false;
   const flushRender = () => {
-    renderQueued = false;
-    if (token !== state.requestToken) return;
+    renderTimer = null;
+    if (streamDone || token !== state.requestToken) return; // nunca pisar el render final
     els.result.innerHTML = renderMarkdown(displayText.replace(/```json[\s\S]*$/i, ''));
     els.resultCard.classList.add('visible');
   };
-  const onText = (t) => { displayText += t; if (!renderQueued) { renderQueued = true; setTimeout(flushRender, 120); } };
+  const onText = (t) => { displayText += t; if (!renderTimer) renderTimer = setTimeout(flushRender, 120); };
   const onSearch = (q) => { if (token === state.requestToken) showStatus(`🔍 Buscando: ${q}`, 'loading', { cancelable: true }); };
   const onRetry = (code, n) => showStatus(`Servidor ocupado (${code}). Reintentando… (${n}/3)`, 'loading', { cancelable: true });
 
@@ -842,6 +858,8 @@ Busca en la web información actualizada y sigue exactamente el formato Markdown
     const { text, stopReason, usage, model } = await runClaude({
       system, userPrompt, tools: buildTools(8), maxTokens: 8000, controller, onText, onSearch, onRetry
     });
+    streamDone = true;
+    clearTimeout(renderTimer);
     if (token !== state.requestToken) return;
     if (!text.trim()) throw new Error('La respuesta llegó vacía. Intenta de nuevo.');
 
@@ -855,8 +873,8 @@ Busca en la web información actualizada y sigue exactamente el formato Markdown
     state.currentMarkdown = finalMd;
     els.resultTitle.textContent = `${home} vs ${away}`;
 
-    const bankroll = parseFloat(els.bankroll.value) || 0;
-    const rows = renderDecision({ probs, oddsFound, bankroll, bookmaker: els.bookmaker.value });
+    const bankroll = Math.max(0, parseFloat(els.bankroll.value) || 0);
+    const rows = renderDecision({ probs, oddsFound, bankroll, bookmaker: els.bookmaker.value, userOdds });
 
     const usd = estimateCost(model, usage);
     els.usage.textContent = `Esta consulta: ${usage.input_tokens.toLocaleString('es-CO')} tokens de entrada · ${usage.output_tokens.toLocaleString('es-CO')} de salida · ${usage.web_search_requests} búsqueda(s) web ≈ US$${usd.toFixed(3)} (~$${Math.round(usd * USD_TO_COP).toLocaleString('es-CO')} COP aprox.)`;
@@ -872,7 +890,7 @@ Busca en la web información actualizada y sigue exactamente el formato Markdown
     hideStatus();
   } catch (err) {
     if (token !== state.requestToken) return;
-    if (err.name === 'AbortError') showStatus('Consulta cancelada.', 'success', { autoHide: 2500 });
+    if (err.name === 'AbortError') showStatus(timedOut ? 'Tiempo de espera agotado. Intenta de nuevo.' : 'Consulta cancelada.', timedOut ? 'error' : 'success', { autoHide: 3000 });
     else showStatus(`❌ ${err.message}`, 'error');
   } finally {
     clearTimeout(timeout);
@@ -881,9 +899,12 @@ Busca en la web información actualizada y sigue exactamente el formato Markdown
   }
 }
 
-function cancelInFlight() {
+function cancelInFlight(reason) {
+  const hadRequest = !!state.controller;
   if (state.controller) { state.controller.abort(); state.controller = null; }
   state.requestToken++;
+  // El catch de la petición ignora respuestas con token viejo, así que el aviso se da aquí.
+  if (hadRequest && reason !== 'silent') showStatus('Consulta cancelada.', 'success', { autoHide: 2500 });
 }
 
 els.btnPredict.addEventListener('click', () => {
@@ -964,7 +985,7 @@ async function fetchFixtures() {
   const timeout = setTimeout(() => controller.abort(), 90000);
   els.btnFixtures.disabled = true;
   showStatus('Buscando la programación oficial de la próxima fecha…', 'loading');
-  const today = new Date().toLocaleDateString('es-CO');
+  const today = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); // sin ambigüedad día/mes
   const userPrompt = `Hoy es ${today}. Busca la programación OFICIAL (Dimayor / Win Sports / Futbolred / ESPN) de la PRÓXIMA fecha de la Liga BetPlay Dimayor II-2026 que aún no se ha jugado (o la que está en curso si faltan partidos). Devuelve ÚNICAMENTE un bloque de código json con un array de objetos: {"round":"Fecha N","home":"...","away":"...","date":"YYYY-MM-DD","time":"HH:MM","venue":"..."} en hora de Colombia. Usa nombres oficiales de los clubes. Si una hora no se conoce, pon null. Sin texto adicional.`;
   try {
     const { text } = await runClaude({
@@ -1080,7 +1101,7 @@ function renderHistory() {
       els.resultTitle.textContent = `${h.home} vs ${h.away}`;
       els.result.innerHTML = renderMarkdown(h.markdown);
       els.usage.hidden = true;
-      if (h.probs) renderDecision({ probs: h.probs, oddsFound: h.oddsUsed?.found || null, bankroll: parseFloat(els.bankroll.value) || 0, bookmaker: h.oddsUsed?.bookmaker });
+      if (h.probs) renderDecision({ probs: h.probs, oddsFound: h.oddsUsed?.found || null, bankroll: Math.max(0, parseFloat(els.bankroll.value) || 0), bookmaker: h.oddsUsed?.bookmaker, userOdds: h.oddsUsed?.user || {} });
       else els.decision.hidden = true;
       els.resultCard.classList.add('visible');
       els.resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1104,7 +1125,7 @@ function renderHistory() {
         const all = loadHistory();
         const target = all.find(x => x.id === h.id);
         const tb = target?.bets?.find(x => x.id === b.id);
-        if (tb) { tb.result = sel.value; persistHistory(all); renderStats(all); }
+        if (tb) { tb.result = sel.value; persistHistory(all); renderHistory(); } // re-render: actualiza el tag +$/−$ y las stats
       });
       row.appendChild(sel);
       const res = b.result === 'won' ? `+${cop(b.stake * (b.odds - 1))}` : b.result === 'lost' ? `−${cop(b.stake)}` : '';
