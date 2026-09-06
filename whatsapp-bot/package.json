@@ -1,0 +1,17 @@
+{
+  "name": "mundial-whatsapp-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Envía pronósticos de partidos de fútbol a WhatsApp 1 hora antes de cada juego, usando la API de Claude (con búsqueda web) y Twilio.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test-now": "node src/index.js --now"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "dotenv": "^16.4.7",
+    "node-cron": "^3.0.3",
+    "twilio": "^5.4.0"
+  }
+}
