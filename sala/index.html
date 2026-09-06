@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Sala FF</title>
+<meta name="description" content="Arma la sala de Free Fire, reparte los equipos y comparte el código en tiempo real." />
+<meta name="theme-color" content="#0A0E17" />
+<meta property="og:title" content="Sala FF" />
+<meta property="og:description" content="Entra, pon tu nombre y escoge equipo. En tiempo real." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A0E17'/%3E%3Cpath d='M16 4c3 5-1 7 1 10 1.5 2.2 4-.5 4-.5 2 6-1 14-5 14S8 22 9 17c.6-3 3-4 3.5-6.5C13 8 14 6 16 4z' fill='%23FF6A1A'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="grid-bg" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="22" height="22"><path d="M16 3c3.2 5.4-1 7.4 1.1 10.6 1.6 2.4 4.3-.6 4.3-.6 2.1 6.4-1.1 15-5.4 15S7.4 22.6 8.5 17.3c.7-3.2 3.2-4.3 3.8-7C12.9 7.6 13.9 5.2 16 3z" fill="currentColor"/></svg>
+    </span>
+    <div class="brand-text">
+      <h1>Sala FF</h1>
+      <p class="brand-sub">Sala <span id="salaNombre">principal</span></p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <span class="conn" id="conn" title="Estado de la conexión"><i class="dot"></i><span id="connTxt">Conectando</span></span>
+    <button type="button" class="btn ghost" id="btnAdmin">Admin</button>
+  </div>
+</header>
+
+<p class="aviso" id="avisoLocal" hidden>
+  <strong>Modo local.</strong> Lo que escribas aquí solo lo ves tú en este celular.
+  Para que todo el grupo vea lo mismo, conecta la base de datos (<code>SETUP.md</code>).
+</p>
+
+<main>
+
+  <!-- ==================== BRIEFING ==================== -->
+  <section class="briefing" aria-labelledby="briefingTitulo">
+    <div class="briefing-head">
+      <h2 id="briefingTitulo" class="panel-titulo">Datos de la partida</h2>
+      <span class="estado" id="estado" data-estado="abierta">Abierta</span>
+    </div>
+
+    <div class="cuenta" id="cuenta">
+      <span class="cuenta-label">Arranca</span>
+      <strong class="cuenta-valor" id="cuentaValor">Sin fecha</strong>
+      <span class="cuenta-fecha" id="cuentaFecha"></span>
+      <button type="button" class="btn chico" id="btnCodigo">Poner hora y código</button>
+    </div>
+
+    <dl class="datos">
+      <div class="dato"><dt>Modo</dt><dd id="dModo">6 vs 6</dd></div>
+      <div class="dato"><dt>Modalidad</dt><dd id="dModalidad">Sala personalizada</dd></div>
+      <div class="dato"><dt>Mapa</dt><dd id="dMapa">Bermuda</dd></div>
+      <div class="dato"><dt>Apuesta</dt><dd id="dApuesta">—</dd></div>
+    </dl>
+
+    <div class="lider" id="lider">
+      <span class="lider-label">Líder de la sala</span>
+      <strong class="lider-nombre" id="dLider">Nadie todavía</strong>
+      <span class="lider-ayuda">Quien pone el código manda: puede sacar, agregar y mover gente. El admin siempre puede.</span>
+    </div>
+
+    <div class="claves">
+      <button type="button" class="clave" data-copiar="codigo">
+        <span class="clave-label">Código de sala</span>
+        <span class="clave-valor" id="dCodigo">—</span>
+        <span class="clave-accion">Copiar</span>
+      </button>
+      <button type="button" class="clave" data-copiar="clave">
+        <span class="clave-label">Contraseña</span>
+        <span class="clave-valor" id="dClave">—</span>
+        <span class="clave-accion">Copiar</span>
+      </button>
+    </div>
+
+    <p class="nota" id="dNota" hidden></p>
+  </section>
+
+  <!-- ==================== EQUIPOS ==================== -->
+  <section class="equipos" aria-label="Equipos">
+    <article class="equipo" data-lado="1">
+      <header class="equipo-head">
+        <h2 class="equipo-nombre" id="nombre1">Equipo 1</h2>
+        <span class="equipo-cupo" id="cupo1">0/6</span>
+      </header>
+      <ol class="slots" id="slots1"></ol>
+    </article>
+
+    <article class="equipo" data-lado="2">
+      <header class="equipo-head">
+        <h2 class="equipo-nombre" id="nombre2">Equipo 2</h2>
+        <span class="equipo-cupo" id="cupo2">0/6</span>
+      </header>
+      <ol class="slots" id="slots2"></ol>
+    </article>
+  </section>
+
+  <section class="banca" id="banca" hidden>
+    <h2 class="panel-titulo">Suplentes</h2>
+    <ul class="slots suplentes" id="slotsBanca"></ul>
+  </section>
+
+  <!-- ==================== ACCIONES ==================== -->
+  <section class="acciones">
+    <button type="button" class="btn primario" id="btnUnirme">Anotarme</button>
+    <button type="button" class="btn" id="btnImagen">Foto equipos</button>
+    <button type="button" class="btn" id="btnResumen">Texto WhatsApp</button>
+    <button type="button" class="btn" id="btnLink">Enlace</button>
+  </section>
+
+  <footer class="pie">
+    <span id="pieActualizado">—</span>
+    <button type="button" class="link-btn" id="btnBanca">Anotarme de suplente</button>
+  </footer>
+
+</main>
+
+<!-- ==================== MODAL: UNIRSE ==================== -->
+<dialog id="dlgUnirme" class="dlg">
+  <form method="dialog" id="formUnirme">
+    <h2 class="dlg-titulo">Entrar a la partida</h2>
+
+    <label class="campo">
+      <span>Tu nombre en el juego</span>
+      <input type="text" id="inNombre" maxlength="22" required autocomplete="off" placeholder="Ej: Pato" />
+    </label>
+
+    <fieldset class="campo">
+      <legend>¿Con quién juegas?</legend>
+      <div class="opciones" id="opcionesEquipo">
+        <label class="opcion" data-lado="1"><input type="radio" name="equipo" value="1" checked /><span id="optNombre1">Equipo 1</span><em id="optCupo1"></em></label>
+        <label class="opcion" data-lado="2"><input type="radio" name="equipo" value="2" /><span id="optNombre2">Equipo 2</span><em id="optCupo2"></em></label>
+        <label class="opcion" data-lado="0"><input type="radio" name="equipo" value="0" /><span>Suplente</span><em>sin cupo</em></label>
+      </div>
+    </fieldset>
+
+    <label class="campo">
+      <span>Rol <small>(opcional)</small></span>
+      <select id="inRol">
+        <option value="">Sin rol</option>
+        <option>Rusher</option>
+        <option>Sniper</option>
+        <option>Support</option>
+        <option>IGL</option>
+        <option>Granadero</option>
+      </select>
+    </label>
+
+    <p class="dlg-error" id="errUnirme" hidden></p>
+
+    <div class="dlg-acciones">
+      <button type="button" class="btn ghost" data-cerrar>Cancelar</button>
+      <button type="button" class="btn peligro" id="btnSalir" hidden>Salir de la sala</button>
+      <button type="submit" class="btn primario" id="btnGuardarJugador">Entrar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ==================== MODAL: CÓDIGO / LÍDER ==================== -->
+<dialog id="dlgCodigo" class="dlg">
+  <form method="dialog" id="formCodigo">
+    <h2 class="dlg-titulo">Hora y código de la partida</h2>
+    <p class="dlg-texto">Cualquiera puede ponerlos. Quien pone el <strong>código</strong> queda como líder: puede sacar, agregar y mover jugadores hasta que otro ponga un código nuevo.</p>
+
+    <label class="campo"><span>Fecha y hora</span><input type="datetime-local" id="cCuando" /></label>
+    <div class="rejilla">
+      <label class="campo"><span>Código de sala</span><input type="text" id="cCodigo" maxlength="24" inputmode="numeric" placeholder="Cuando la crees" /></label>
+      <label class="campo"><span>Contraseña</span><input type="text" id="cClave" maxlength="24" placeholder="Si tiene" /></label>
+    </div>
+    <label class="campo">
+      <span>Tu nombre <small>(si pones el código)</small></span>
+      <input type="text" id="cNombre" maxlength="22" autocomplete="off" placeholder="Ej: Pato" />
+    </label>
+
+    <p class="dlg-error" id="errCodigo" hidden></p>
+
+    <div class="dlg-acciones">
+      <button type="button" class="btn ghost" data-cerrar>Cancelar</button>
+      <button type="submit" class="btn primario">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ==================== MODAL: ADMIN ==================== -->
+<dialog id="dlgAdmin" class="dlg">
+  <form method="dialog" id="formAdmin">
+    <h2 class="dlg-titulo">Ajustes de la sala (admin)</h2>
+    <p class="dlg-texto">Como admin puedes sacar, anotar y mover gente directamente en los equipos, sin poner el código. Aquí van los ajustes generales.</p>
+
+    <div class="rejilla">
+      <label class="campo"><span>Estado</span>
+        <select id="aEstado">
+          <option value="abierta">Abierta — pueden entrar</option>
+          <option value="jugando">En juego</option>
+          <option value="cerrada">Cerrada</option>
+        </select>
+      </label>
+      <label class="campo"><span>Modo</span>
+        <select id="aModo">
+          <option value="1">1 vs 1</option>
+          <option value="2">2 vs 2</option>
+          <option value="4">4 vs 4</option>
+          <option value="6" selected>6 vs 6</option>
+          <option value="12">12 vs 12</option>
+        </select>
+      </label>
+      <label class="campo"><span>Modalidad</span>
+        <select id="aModalidad">
+          <option>Sala personalizada</option>
+          <option>Clásica</option>
+          <option>Clash Squad</option>
+          <option>Battle Royale</option>
+          <option>Entrenamiento</option>
+        </select>
+      </label>
+      <label class="campo"><span>Mapa</span>
+        <select id="aMapa">
+          <option>Bermuda</option>
+          <option>Purgatorio</option>
+          <option>Kalahari</option>
+          <option>Alpes</option>
+          <option>NeXTerra</option>
+          <option>Solara</option>
+          <option>Fábrica</option>
+        </select>
+      </label>
+      <label class="campo"><span>Apuesta</span><input type="text" id="aApuesta" maxlength="40" placeholder="Ej: 5k cada uno" /></label>
+      <label class="campo"><span>Nombre del equipo 1</span><input type="text" id="aNombre1" maxlength="22" placeholder="Equipo 1" /></label>
+      <label class="campo"><span>Nombre del equipo 2</span><input type="text" id="aNombre2" maxlength="22" placeholder="Equipo 2" /></label>
+    </div>
+
+    <label class="campo campo-check"><input type="checkbox" id="aQuitarLider" /><span>Quitar el líder actual</span></label>
+
+    <label class="campo"><span>Nota para el grupo</span><textarea id="aNota" rows="2" maxlength="200" placeholder="Ej: conéctense 10 min antes"></textarea></label>
+
+    <div class="dlg-acciones">
+      <button type="button" class="btn ghost" data-cerrar>Cancelar</button>
+      <button type="button" class="btn peligro" id="btnVaciar">Vaciar equipos</button>
+      <button type="submit" class="btn primario">Guardar cambios</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="aviso-copia" id="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

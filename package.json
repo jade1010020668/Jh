@@ -1,0 +1,8 @@
+{
+  "name": "jh",
+  "private": true,
+  "description": "Apps web estáticas publicadas en Netlify",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.13"
+  }
+}
