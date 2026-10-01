@@ -153,3 +153,9 @@ details summary { cursor: pointer; color: var(--brand); margin-bottom: 8px; }
 .member h3 { margin: 8px 0; }
 .avatar { width: 48px; height: 48px; border-radius: 50%; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; }
 .about { white-space: pre-wrap; border-top: 1px solid var(--line); padding-top: 8px; }
+
+/* extras de la versión Netlify */
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; z-index: 50; max-width: calc(100% - 32px); box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+.toast.error { background: var(--red); color: #fff; }
+.busy { opacity: .6; pointer-events: none; }
+button[disabled] { opacity: .6; cursor: progress; }
