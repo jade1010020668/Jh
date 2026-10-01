@@ -25,7 +25,7 @@ Un solo lugar para el grupo de la especialización:
 - **Muro** de mensajes y comentarios en cada fecha.
 - **Datos de contacto** de cada integrante, con botón de WhatsApp.
 
-Cada quien entra con su usuario; para registrarse hace falta el código del grupo.
+Es un solo tablero, sin cuentas: quien tiene el enlace entra y ve todo.
 
 En línea en **https://fabulous-unicorn-235c34.netlify.app/grupo/** (los datos y archivos se guardan en Netlify Blobs vía `netlify/functions/grupo.mjs`). Detalles: **[grupo/SETUP.md](grupo/SETUP.md)**.
 

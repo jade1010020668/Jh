@@ -17,9 +17,8 @@
     del(k) { try { localStorage.removeItem(k); } catch (e) {} },
   };
 
-  let token = guardado.get("grupo-token");
-  let D = null;          // datos del servidor
-  let pantalla = "";     // modo previo a entrar: sin-grupo | entrar | registro
+  let D = null;                                // el tablero, tal como lo manda el servidor
+  let autor = guardado.get("grupo-autor") || ""; // quién está usando este navegador (solo para firmar)
 
   /* ------------------------------------------------------------ utilidades */
 
@@ -28,8 +27,7 @@
     const corto = u.length > 45 ? u.slice(0, 42) + "…" : u;
     return `<a href="${u}" target="_blank" rel="noopener">${corto}</a>`;
   });
-  const primerNombre = (u) => (u && u.nombre ? u.nombre.split(" ")[0] : "—");
-  const usuario = (uid) => (D && D.usuarios[uid]) || null;
+  const primerNombre = (n) => (n ? n.split(" ")[0] : "Alguien");
 
   // Partes de una fecha vistas en hora de Colombia
   const fmtPartes = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -94,7 +92,6 @@
 
   async function llamar(metodo, cuerpo, ruta = "", tipo = "application/json") {
     const headers = {};
-    if (token) headers.Authorization = "Bearer " + token;
     if (cuerpo !== undefined) headers["Content-Type"] = tipo;
     const r = await fetch(API + ruta, {
       method: metodo, headers, cache: "no-store",
@@ -102,20 +99,16 @@
     });
     let json = {};
     try { json = await r.json(); } catch (e) {}
-    if (r.status === 401 && token && !["entrar"].includes(cuerpo && cuerpo.op)) { cerrarSesion(); throw new Error(json.error || "Tu sesión expiró."); }
     if (!r.ok) throw new Error(json.error || `Error ${r.status}`);
     return json;
   }
 
   function recibir(json) {
-    if (json.token) { token = json.token; guardado.set("grupo-token", token); }
-    if (json.estado === "ok") D = json;
-    else { D = null; pantalla = json.estado; }
-    if (json.grupo) document.title = json.grupo.nombre;
+    D = json;
   }
 
   async function op(datos, ok) {
-    const r = await llamar("POST", datos);
+    const r = await llamar("POST", { ...datos, autor });
     recibir(r);
     if (ok) aviso(ok);
     pintar();
@@ -130,11 +123,6 @@
       return;
     }
     pintar();
-  }
-
-  function cerrarSesion() {
-    token = null; D = null; pantalla = "entrar";
-    guardado.del("grupo-token");
   }
 
   /* ------------------------------------------------------------ piezas */
@@ -159,7 +147,7 @@
   }
 
   function urlArchivo(r, descargar) {
-    return `${API}/archivo/${r.id}?t=${encodeURIComponent(token)}${descargar ? "&descargar=1" : ""}`;
+    return `${API}/archivo/${r.id}${descargar ? "?descargar=1" : ""}`;
   }
 
   function filaRecurso(r, borrable) {
@@ -169,7 +157,7 @@
       <div class="res-icon">${icono}</div>
       <div class="grow">
         <a class="title" href="${esc(href)}" target="_blank" rel="noopener">${esc(r.titulo)}</a>
-        <div class="muted small">${CATEGORIAS[r.categoria]}${r.materia ? " · 📚 " + esc(r.materia) : ""}${r.tipo === "archivo" ? " · " + tamano(r.tamano) : ""} · ${esc(primerNombre(usuario(r.por)))}, ${relativo(r.creado)}</div>
+        <div class="muted small">${CATEGORIAS[r.categoria]}${r.materia ? " · 📚 " + esc(r.materia) : ""}${r.tipo === "archivo" ? " · " + tamano(r.tamano) : ""} · ${esc(primerNombre(r.por))}, ${relativo(r.creado)}</div>
         ${r.nota ? `<div class="small">${enlazar(r.nota)}</div>` : ""}
       </div>
       ${r.tipo === "archivo" ? `<a class="icon-btn" href="${esc(urlArchivo(r, true))}" title="Descargar">⬇</a>` : ""}
@@ -180,11 +168,11 @@
   function post(c) {
     return `<div class="post ${c.fijado ? "pinned" : ""}">
       <div class="post-head">
-        <strong>${esc(primerNombre(usuario(c.por)))}</strong>
+        <strong>${esc(c.por || "Alguien")}</strong>
         <span class="muted small">${relativo(c.creado)}${c.fijado ? " · 📌 fijado" : ""}</span>
         <span class="grow"></span>
         ${c.fecha ? "" : `<button class="link-btn small" data-act="fijar" data-id="${c.id}">${c.fijado ? "Desfijar" : "Fijar"}</button>`}
-        ${c.por === D.yo ? `<button class="link-btn small danger" data-act="comentario-borrar" data-id="${c.id}">Borrar</button>` : ""}
+        <button class="link-btn small danger" data-act="comentario-borrar" data-id="${c.id}">Borrar</button>
       </div>
       <div class="post-body">${enlazar(c.texto)}</div>
     </div>`;
@@ -193,60 +181,26 @@
   const materias = () => [...new Set([...D.fechas.map((f) => f.materia), ...D.recursos.map((r) => r.materia)].filter(Boolean))].sort();
   const listaMaterias = () => `<datalist id="materias">${materias().map((m) => `<option value="${esc(m)}">`).join("")}</datalist>`;
 
-  /* ------------------------------------------------------------ vistas sin sesión */
+  /* ------------------------------------------------------------ ¿quién eres? */
 
-  function vistaSinGrupo() {
-    return `<div class="auth">
-      <h1>🎓 Crear el grupo</h1>
-      <p class="muted">Eres la primera persona en entrar. Ponle nombre al grupo y escoge el <strong>código</strong>
-        que los demás usarán para registrarse (pásalo solo por el chat del grupo).</p>
-      <form class="card form" data-form="crear-grupo">
-        <label>Nombre del grupo <input name="grupo" value="Grupo CUN" required maxlength="60"></label>
-        <label>Código del grupo <input name="codigo" required minlength="4" placeholder="ej. cun-gerencia-2026"></label>
-        <hr>
-        <label>Tu nombre completo <input name="nombre" required></label>
-        <label>Usuario (para entrar) <input name="usuario" required autocomplete="username" placeholder="ej. laura.g"></label>
-        <label>Contraseña <input name="clave" type="password" minlength="6" required autocomplete="new-password"></label>
-        <label>WhatsApp <input name="whatsapp" placeholder="3001234567"></label>
-        <button class="btn">Crear grupo y entrar</button>
-      </form>
-    </div>`;
+  // Sin cuentas: cada navegador recuerda un nombre para firmar lo que publica.
+  function barraQuien() {
+    if (autor) return "";
+    const nombres = D.integrantes.map((u) => u.nombre).sort((a, b) => a.localeCompare(b));
+    return `<form class="card form quien" data-form="quien">
+      <h2>👋 ¿Quién eres?</h2>
+      <p class="muted small">Solo para que el grupo sepa quién publicó cada cosa. No hay contraseña; se recuerda en este navegador.</p>
+      <div class="copy-row">
+        <input name="nombre" list="nombres-grupo" required placeholder="Tu nombre" maxlength="60">
+        <button class="btn">Listo</button>
+      </div>
+      <datalist id="nombres-grupo">${nombres.map((n) => `<option value="${esc(n)}">`).join("")}</datalist>
+    </form>`;
   }
 
-  function vistaEntrar() {
-    return `<div class="auth">
-      <h1>🎓 ${esc(document.title)}</h1>
-      <p class="muted">Fechas, entregas, archivos y contactos del grupo, en un solo lugar.</p>
-      <form class="card form" data-form="entrar">
-        <label>Usuario <input name="usuario" autocomplete="username" required autofocus></label>
-        <label>Contraseña <input name="clave" type="password" autocomplete="current-password" required></label>
-        <button class="btn">Entrar</button>
-      </form>
-      <p class="center">¿Primera vez? <a href="#" data-act="ir-registro">Crea tu cuenta con el código del grupo</a></p>
-    </div>`;
-  }
-
-  function vistaRegistro() {
-    return `<div class="auth">
-      <h1>Crear cuenta</h1>
-      <p class="muted">Necesitas el <strong>código del grupo</strong>; así nadie de afuera puede entrar.</p>
-      <form class="card form" data-form="registro">
-        <label>Código del grupo <input name="codigo" required></label>
-        <label>Tu nombre completo <input name="nombre" required></label>
-        <label>Usuario (para entrar) <input name="usuario" autocomplete="username" required placeholder="ej. laura.g"></label>
-        <label>Contraseña <input name="clave" type="password" minlength="6" autocomplete="new-password" required></label>
-        <label>Correo <input name="correo" type="email"></label>
-        <label>WhatsApp <input name="whatsapp" placeholder="3001234567"></label>
-        <button class="btn">Crear cuenta</button>
-      </form>
-      <p class="center"><a href="#" data-act="ir-entrar">Ya tengo cuenta</a></p>
-    </div>`;
-  }
-
-  /* ------------------------------------------------------------ vistas con sesión */
+  /* ------------------------------------------------------------ vistas */
 
   function vistaInicio() {
-    const yo = usuario(D.yo);
     const al = alarmas();
     const ahora = Date.now();
     const despues = D.fechas.filter((f) => !f.listo && new Date(f.cuando) > ahora + 7 * 864e5)
@@ -254,7 +208,7 @@
     const hoy = hoyStr();
     const [hy, hm, hd] = hoy.split("-").map(Number);
     const hoyUTC = Date.UTC(hy, hm - 1, hd);
-    const cumples = Object.values(D.usuarios).filter((u) => u.cumple).map((u) => {
+    const cumples = D.integrantes.filter((u) => u.cumple).map((u) => {
       const [, m, d] = u.cumple.split("-").map(Number);
       let t = Date.UTC(hy, m - 1, d);
       if (t < hoyUTC) t = Date.UTC(hy + 1, m - 1, d);
@@ -266,7 +220,7 @@
     const ultimos = D.recursos.slice(-5).reverse();
 
     return `<div class="page-head">
-        <h1>Hola, ${esc(primerNombre(yo))} 👋</h1>
+        <h1>${autor ? `Hola, ${esc(primerNombre(autor))} 👋` : esc(D.nombre)}</h1>
         <div class="actions"><a class="btn" href="#/nueva">+ Fecha / entrega</a><a class="btn ghost" href="#/archivos">+ Archivo o link</a></div>
       </div>
       <section class="card">
@@ -331,7 +285,7 @@
   function googleCal(f) {
     const ini = new Date(f.cuando), fin = new Date(ini.getTime() + 3600e3);
     const z = (d) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-    const p = new URLSearchParams({ action: "TEMPLATE", text: `[${D.grupo.nombre}] ${f.titulo}`, dates: `${z(ini)}/${z(fin)}`, details: [f.detalle, f.link].filter(Boolean).join("\n\n") });
+    const p = new URLSearchParams({ action: "TEMPLATE", text: `[${D.nombre}] ${f.titulo}`, dates: `${z(ini)}/${z(fin)}`, details: [f.detalle, f.link].filter(Boolean).join("\n\n") });
     return "https://calendar.google.com/calendar/render?" + p;
   }
   function waCompartir(f) {
@@ -354,7 +308,7 @@
         ${f.materia ? `<p>📚 ${esc(f.materia)}</p>` : ""}
         ${f.detalle ? `<div class="desc">${enlazar(f.detalle)}</div>` : ""}
         ${f.link ? `<p>🔗 <a href="${esc(f.link)}" target="_blank" rel="noopener">${esc(f.link)}</a></p>` : ""}
-        <p class="muted small">Agregada por ${esc(usuario(f.por) ? usuario(f.por).nombre : "—")}, ${relativo(f.creado)}</p>
+        <p class="muted small">Agregada${f.por ? " por " + esc(f.por) : ""} ${relativo(f.creado)}</p>
         <div class="actions wrap">
           <button class="btn" data-act="fecha-listo" data-id="${f.id}">${f.listo ? "↺ Marcar pendiente" : "✔ Marcar como listo"}</button>
           <a class="btn ghost" href="${esc(googleCal(f))}" target="_blank" rel="noopener">📅 Agregar a mi Google Calendar</a>
@@ -395,7 +349,7 @@
       </div>`;
     }
     const ant = m === 1 ? [y - 1, 12] : [y, m - 1], sig = m === 12 ? [y + 1, 1] : [y, m + 1];
-    const feed = `${location.origin}${API}/calendario/${D.grupo.calendario}.ics`;
+    const feed = `${location.origin}${API}/calendario.ics`;
     return `<div class="page-head"><h1>📆 ${MESES[m - 1][0].toUpperCase() + MESES[m - 1].slice(1)} ${y}</h1>
         <div class="actions">
           <a class="btn ghost" href="#/calendario?y=${ant[0]}&m=${ant[1]}">←</a>
@@ -412,7 +366,7 @@
           <li><strong>iPhone:</strong> Ajustes → Calendario → Cuentas → Añadir cuenta → Otra → «Añadir calendario suscrito».</li>
           <li><strong>Outlook:</strong> Agregar calendario → Suscribirse desde la web.</li>
         </ul>
-        <p class="muted small">Google tarda algunas horas en refrescar calendarios suscritos. Para algo urgente usa el botón «Agregar a mi Google Calendar» dentro de cada fecha. No compartas este enlace fuera del grupo.</p>
+        <p class="muted small">Google tarda algunas horas en refrescar calendarios suscritos. Para algo urgente usa el botón «Agregar a mi Google Calendar» dentro de cada fecha. </p>
       </section>`;
   }
 
@@ -466,12 +420,13 @@
   }
 
   function vistaIntegrantes() {
-    const lista = Object.values(D.usuarios).sort((a, b) => a.nombre.localeCompare(b.nombre));
-    return `<div class="page-head"><h1>👥 Integrantes</h1><div class="actions"><a class="btn ghost" href="#/perfil">Editar mis datos</a></div></div>
-      <p class="muted small">Solo las personas con cuenta en la app ven estos datos.</p>
+    const lista = D.integrantes.slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
+    return `<div class="page-head"><h1>👥 Integrantes</h1><div class="actions"><a class="btn" href="#/integrante/nuevo">+ Agregar integrante</a></div></div>
+      <p class="muted small">Cada quien puede agregar o corregir sus datos. Los ve cualquiera que tenga el enlace del tablero.</p>
+      ${lista.length ? "" : `<div class="card"><p class="muted">Todavía no hay nadie. <a href="#/integrante/nuevo">Agrega a la primera persona</a>.</p></div>`}
       <div class="members">${lista.map((u) => `<div class="card member">
-        <div class="avatar">${esc(u.nombre[0].toUpperCase())}</div>
-        <h3>${esc(u.nombre)}${u.id === D.yo ? ` <span class="muted small">(tú)</span>` : ""}</h3>
+        <div class="page-head"><div class="avatar">${esc(u.nombre[0].toUpperCase())}</div><a class="icon-btn" href="#/integrante/${u.id}" title="Editar">✏️</a></div>
+        <h3>${esc(u.nombre)}${u.nombre === autor ? ` <span class="muted small">(tú)</span>` : ""}</h3>
         <ul class="plain small">
           ${u.correo ? `<li>✉️ <a href="mailto:${esc(u.correo)}">${esc(u.correo)}</a></li>` : ""}
           ${u.telefono ? `<li>📞 <a href="tel:${esc(u.telefono)}">${esc(u.telefono)}</a></li>` : ""}
@@ -479,28 +434,30 @@
           ${u.cumple ? `<li>🎂 ${+u.cumple.slice(8)}/${+u.cumple.slice(5, 7)}</li>` : ""}
         </ul>
         ${u.sobre ? `<p class="small about">${enlazar(u.sobre)}</p>` : ""}
-      </div>`).join("")}</div>`;
+      </div>`).join("")}</div>
+      <form class="card form" data-form="nombre-grupo">
+        <h2>⚙️ Nombre del tablero</h2>
+        <div class="copy-row"><input name="nombre" value="${esc(D.nombre)}" required maxlength="60"><button class="btn small">Guardar</button></div>
+      </form>`;
   }
 
-  function vistaPerfil() {
-    const u = usuario(D.yo);
-    return `<h1>Mi perfil</h1>
-      <form class="card form" data-form="perfil">
-        <p class="muted small">Usuario: <strong>${esc(u.usuario)}</strong>. Estos datos los ve el resto del grupo.</p>
-        <label>Nombre completo <input name="nombre" value="${esc(u.nombre)}" required></label>
-        <div class="row"><label>Correo <input name="correo" type="email" value="${esc(u.correo)}"></label><label>Teléfono <input name="telefono" value="${esc(u.telefono)}"></label></div>
-        <div class="row"><label>WhatsApp <input name="whatsapp" value="${esc(u.whatsapp)}" placeholder="3001234567"></label><label>Cumpleaños <input name="cumple" type="date" value="${esc(u.cumple)}"></label></div>
-        <label>Sobre mí / otros datos <textarea name="sobre" rows="4" placeholder="Horarios en que puedo reunirme, trabajo, LinkedIn, en qué soy bueno/a…">${esc(u.sobre)}</textarea></label>
-        <details><summary>Cambiar contraseña</summary><div class="row">
-          <label>Contraseña actual <input name="claveActual" type="password" autocomplete="current-password"></label>
-          <label>Nueva contraseña <input name="claveNueva" type="password" minlength="6" autocomplete="new-password"></label>
-        </div></details>
-        <button class="btn">Guardar</button>
-      </form>
-      <form class="card form" data-form="codigo">
-        <h2>Código del grupo</h2>
-        <p class="muted small">Es lo que piden para crear cuenta. Si alguien de afuera lo conoce, cámbialo aquí.</p>
-        <div class="copy-row"><input name="codigo" minlength="4" required placeholder="Nuevo código"><button class="btn small">Cambiar</button></div>
+  function vistaIntegrante(idInt) {
+    const u = idInt && idInt !== "nuevo" ? D.integrantes.find((x) => x.id === idInt) : null;
+    if (idInt && idInt !== "nuevo" && !u) return vistaNoEncontrado();
+    const v = (k) => esc(u ? u[k] : k === "nombre" && !D.integrantes.some((x) => x.nombre === autor) ? autor : "");
+    return `<p class="small"><a href="#/integrantes">← Integrantes</a></p>
+      <h1>${u ? "Editar datos" : "Agregar integrante"}</h1>
+      <form class="card form" data-form="integrante">
+        ${u ? `<input type="hidden" name="id" value="${u.id}">` : ""}
+        <label>Nombre completo <input name="nombre" value="${v("nombre")}" required maxlength="120"></label>
+        <div class="row"><label>Correo <input name="correo" type="email" value="${v("correo")}"></label><label>Teléfono <input name="telefono" value="${v("telefono")}"></label></div>
+        <div class="row"><label>WhatsApp <input name="whatsapp" value="${v("whatsapp")}" placeholder="3001234567"></label><label>Cumpleaños <input name="cumple" type="date" value="${v("cumple")}"></label></div>
+        <label>Otros datos <textarea name="sobre" rows="4" placeholder="Horarios para reunirse, trabajo, LinkedIn, en qué es bueno/a…">${v("sobre")}</textarea></label>
+        <div class="actions">
+          <button class="btn">Guardar</button>
+          <a class="btn ghost" href="#/integrantes">Cancelar</a>
+          ${u ? `<button type="button" class="btn ghost danger" data-act="integrante-borrar" data-id="${u.id}">🗑 Quitar</button>` : ""}
+        </div>
       </form>`;
   }
 
@@ -515,35 +472,31 @@
   }
 
   function pintar() {
-    if (!D) {
-      const v = pantalla === "sin-grupo" ? vistaSinGrupo() : pantalla === "registro" ? vistaRegistro() : vistaEntrar();
-      $app.innerHTML = `<main class="container">${v}</main>`;
-      return;
-    }
+    if (!D) return;
     const { partes: p, q } = ruta();
     const r = p[0] || "inicio";
     const vistas = {
       inicio: vistaInicio, fechas: () => vistaFechas(q), nueva: () => vistaFormFecha(), editar: () => vistaFormFecha(p[1]),
       fecha: () => vistaFecha(p[1]), calendario: () => vistaCalendario(q), archivos: () => vistaArchivos(q),
-      muro: vistaMuro, integrantes: vistaIntegrantes, perfil: vistaPerfil,
+      muro: vistaMuro, integrantes: vistaIntegrantes, integrante: () => vistaIntegrante(p[1]),
     };
-    const activo = { nueva: "fechas", editar: "fechas", fecha: "fechas" }[r] || r;
+    const activo = { nueva: "fechas", editar: "fechas", fecha: "fechas", integrante: "integrantes" }[r] || r;
     const n = urgentes();
-    document.title = (n ? `(${n}) ` : "") + D.grupo.nombre;
+    document.title = (n ? `(${n}) ` : "") + D.nombre;
     const link = (k, label) => `<a href="#/${k === "inicio" ? "" : k}" class="${activo === k ? "active" : ""}">${label}</a>`;
     const permiso = "Notification" in window && Notification.permission === "default" && !guardado.get("notif-no");
     $app.innerHTML = `<header class="topbar">
-        <a class="brand" href="#/">🎓 ${esc(D.grupo.nombre)}</a>
+        <a class="brand" href="#/">🎓 ${esc(D.nombre)}</a>
         <button class="menu-btn" type="button" aria-label="Menú" data-act="menu">☰</button>
         <nav class="nav">
           ${link("inicio", "Inicio" + (n ? ` <span class="badge">${n}</span>` : ""))}${link("calendario", "Calendario")}${link("fechas", "Fechas")}
-          ${link("archivos", "Archivos y links")}${link("muro", "Muro")}${link("integrantes", "Integrantes")}${link("perfil", "Mi perfil")}
-          <button class="link-btn" data-act="salir">Salir</button>
+          ${link("archivos", "Archivos y links")}${link("muro", "Muro")}${link("integrantes", "Integrantes")}
+          ${autor ? `<button class="link-btn" data-act="cambiar-autor" title="Cambiar de nombre">👤 ${esc(primerNombre(autor))}</button>` : ""}
         </nav>
       </header>
       ${permiso ? `<div class="notif-bar">🔔 ¿Quieres que el navegador te avise cuando se acerque una entrega?
         <button class="btn small" data-act="notif-si">Activar alarmas</button> <button class="link-btn" data-act="notif-no">Ahora no</button></div>` : ""}
-      <main class="container">${(vistas[r] || vistaNoEncontrado)()}</main>`;
+      <main class="container">${barraQuien()}${(vistas[r] || vistaNoEncontrado)()}</main>`;
     document.body.classList.remove("nav-open");
   }
 
@@ -570,12 +523,14 @@
     const tipo = f.dataset.form;
     conBoton(f, async () => {
       switch (tipo) {
-        case "crear-grupo": case "registro":
-          await op({ op: tipo, ...datos }, "¡Bienvenido/a! Completa tu perfil para que el grupo te pueda contactar.");
-          location.hash = "#/perfil";
-          break;
-        case "entrar":
-          await op({ op: "entrar", ...datos });
+        case "quien":
+          autor = datos.nombre.trim();
+          guardado.set("grupo-autor", autor);
+          pintar();
+          if (!D.integrantes.some((x) => x.nombre.toLowerCase() === autor.toLowerCase())) {
+            aviso("¡Hola! Agrega tus datos de contacto para el grupo.");
+            location.hash = "#/integrante/nuevo";
+          }
           break;
         case "fecha": {
           const antes = new Set(D.fechas.map((x) => x.id));
@@ -587,11 +542,12 @@
         case "comentar":
           await op({ op: "comentar", fecha: datos.fecha || null, texto: datos.texto, fijado: !!datos.fijado });
           break;
-        case "perfil":
-          await op({ op: "perfil", ...datos }, "Perfil guardado.");
+        case "integrante":
+          await op({ op: "integrante", ...datos }, "Datos guardados.");
+          location.hash = "#/integrantes";
           break;
-        case "codigo":
-          await op({ op: "codigo", codigo: datos.codigo }, "Código cambiado. Avísale al grupo.");
+        case "nombre-grupo":
+          await op({ op: "nombre-grupo", nombre: datos.nombre }, "Nombre guardado.");
           break;
         case "subir": {
           if (datos.modo === "link") {
@@ -601,7 +557,7 @@
             const archivo = f.querySelector("input[type=file]").files[0];
             if (!archivo) throw new Error("Elige un archivo o cambia a «Link».");
             if (archivo.size > D.maxArchivo) throw new Error(`Pesa ${tamano(archivo.size)}; el máximo es ${tamano(D.maxArchivo)}. Súbelo a Drive y guarda el link.`);
-            const qs = new URLSearchParams({ nombre: archivo.name, titulo: datos.titulo, categoria: datos.categoria, materia: datos.materia, nota: datos.nota });
+            const qs = new URLSearchParams({ nombre: archivo.name, autor, titulo: datos.titulo, categoria: datos.categoria, materia: datos.materia, nota: datos.nota });
             aviso("Subiendo…");
             recibir(await llamar("POST", archivo, "/archivo?" + qs, archivo.type || "application/octet-stream"));
             aviso("Listo, ya está en la biblioteca del grupo.");
@@ -622,6 +578,7 @@
     "fecha-borrar": "¿Borrar esta fecha para todo el grupo?",
     "recurso-borrar": "¿Eliminar esto para todo el grupo?",
     "comentario-borrar": "¿Borrar este mensaje?",
+    "integrante-borrar": "¿Quitar a esta persona de la lista de integrantes?",
   };
 
   document.addEventListener("click", (e) => {
@@ -631,8 +588,7 @@
     if (el.tagName === "A") e.preventDefault();
     switch (act) {
       case "menu": document.body.classList.toggle("nav-open"); return;
-      case "ir-registro": pantalla = "registro"; pintar(); return;
-      case "ir-entrar": pantalla = "entrar"; pintar(); return;
+      case "cambiar-autor": autor = ""; guardado.del("grupo-autor"); pintar(); scrollTo(0, 0); return;
       case "notif-si": Notification.requestPermission().then(() => { pintar(); revisarAlarmas(); }); return;
       case "notif-no": guardado.set("notif-no", "1"); pintar(); return;
       case "copiar": {
@@ -642,14 +598,12 @@
           .finally(() => { el.textContent = "¡Copiado!"; setTimeout(() => (el.textContent = "Copiar"), 1500); });
         return;
       }
-      case "salir":
-        llamar("POST", { op: "salir" }).catch(() => {}).finally(() => { cerrarSesion(); location.hash = ""; pintar(); });
-        return;
     }
     if (CONFIRMAR[act] && !confirm(CONFIRMAR[act])) return;
     conBoton(el, async () => {
       await op({ op: act, id: el.dataset.id }, act === "fecha-listo" ? null : act.endsWith("borrar") ? "Eliminado." : null);
       if (act === "fecha-borrar") location.hash = "#/fechas";
+      if (act === "integrante-borrar") location.hash = "#/integrantes";
     });
   });
 
@@ -669,7 +623,7 @@
   }
 
   async function refrescar() {
-    if (!token || document.hidden) return;
+    if (document.hidden) return;
     try {
       const antes = JSON.stringify(D);
       recibir(await llamar("GET"));

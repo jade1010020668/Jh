@@ -6,24 +6,25 @@
 https://fabulous-unicorn-235c34.netlify.app/grupo/
 ```
 
-El repo está conectado a **Netlify**: cada vez que algo llega a `main`, se publica
-solo en un minuto. No hay que crear cuentas ni configurar nada.
+Es **un solo tablero para el grupo**. No hay cuentas ni contraseñas: quien abre el
+enlace entra y ve todo. Pásenlo solo por el chat del grupo.
 
-Todo lo que el grupo escribe o sube (fechas, mensajes, perfiles y archivos) se
-guarda en **Netlify Blobs**, la nube de Netlify, a través de la función
-`netlify/functions/grupo.mjs`. No se pierde aunque se vuelva a publicar el sitio.
+El repo está conectado a **Netlify**: cada vez que algo llega a `main`, se publica
+solo en un minuto. Todo lo que el grupo escribe o sube (fechas, mensajes, datos de
+los integrantes y archivos) se guarda en **Netlify Blobs**, la nube de Netlify, a
+través de la función `netlify/functions/grupo.mjs`. No se pierde aunque se vuelva a
+publicar el sitio.
 
 ## Primera vez
 
-1. **La primera persona** que abre el enlace ve «Crear el grupo»: escribe el nombre
-   del grupo, inventa el **código del grupo** y crea su usuario.
-2. Pasa el enlace y el código **solo por el chat del grupo**.
-3. Los demás entran, tocan «Crea tu cuenta», ponen el código y llenan su perfil.
-4. Cada quien toca **Activar alarmas** para que el navegador avise de las entregas
-   y, en *Calendario*, copia el enlace de suscripción a su Google Calendar o iPhone
+1. Abre el enlace. Arriba sale **¿Quién eres?**: escribe tu nombre. Solo sirve para
+   firmar lo que publicas y se recuerda en ese navegador. Se puede cambiar tocando
+   tu nombre en el menú.
+2. En **Integrantes**, cada quien agrega o corrige sus datos (WhatsApp, correo,
+   cumpleaños, horarios). Cualquiera puede agregar a los demás.
+3. Toca **Activar alarmas** para que el navegador avise de las entregas.
+4. En **Calendario**, copia el enlace de suscripción a tu Google Calendar o iPhone
    para tener los recordatorios en el celular.
-
-Si el código se filtra, cualquiera del grupo puede cambiarlo en *Mi perfil*.
 
 ## Qué trae
 
@@ -40,18 +41,23 @@ Si el código se filtra, cualquiera del grupo puede cambiarlo en *Mi perfil*.
   funciones de Netlify); lo más pesado, en Drive y se guarda el link.
 - **Muro** con mensajes fijados que salen en el inicio.
 - **Integrantes**: correo, teléfono, WhatsApp, cumpleaños y una nota libre.
-- **Calendario** del mes.
+- **Calendario** del mes. El nombre del tablero se cambia en *Integrantes*.
 
 La página se actualiza sola cada 30 segundos con lo que suban los demás.
+
+## Privacidad
+
+Como no hay contraseña, **cualquiera con el enlace puede ver y cambiar el tablero**,
+incluidos los teléfonos y correos. No lo publiquen en redes ni en grupos grandes.
 
 ## Límites del plan gratis
 
 Netlify da 125 000 llamadas de función al mes. La app consulta cada 30 segundos solo
 mientras está visible: 5 personas con la app abierta una hora diaria usan unas
-18 000 al mes. Los Blobs incluyen espacio de sobra para cientos de PDFs.
+18 000 al mes.
 
 ## Archivos
 
 - `grupo/index.html`, `grupo/app.js`, `grupo/styles.css` — la página.
-- `netlify/functions/grupo.mjs` — la API (`/api/grupo`): cuentas, datos, archivos
-  y el calendario `.ics`.
+- `netlify/functions/grupo.mjs` — la API (`/api/grupo`): el tablero, los archivos y
+  el calendario `.ics`.
