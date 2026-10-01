@@ -5,7 +5,7 @@
 
   const API = "/api/grupo";
   const TZ = "America/Bogota";
-  const TIPOS = { entrega: "Entrega", parcial: "Parcial / examen", reunion: "Reunión", clase: "Clase / sesión", otro: "Otro" };
+  const TIPOS = { novedad: "Novedad", entrega: "Entrega", parcial: "Parcial / examen", reunion: "Reunión", clase: "Clase / sesión", otro: "Otro" };
   const CATEGORIAS = { solucion: "Solución de parcial", entrega: "Entrega / trabajo", material: "Material de clase", guia: "Guía / enunciado", otro: "Otro" };
   const DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
   const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -233,13 +233,13 @@
           <div><b>${D.recursos.length}</b><span>Archivos y links</span></div>
           <div><b>${D.integrantes.length}</b><span>Integrantes</span></div>
         </div>
-        <div class="actions"><a class="btn" href="#/nueva">+ Fecha / entrega</a><a class="btn ghost" href="#/archivos">+ Archivo o link</a></div>
+        <div class="actions"><a class="btn" href="#/nueva">+ Añadir recordatorio</a><a class="btn ghost" href="#/archivos">+ Archivo o link</a></div>
       </section>
       <section class="card">
         <h2>🔔 Alarmas</h2>
         ${al.length ? `<ul class="list">${al.map(filaFecha).join("")}</ul>` : `<p class="muted">Nada pendiente en los próximos 7 días. 🎉</p>`}
         ${despues.length ? `<h3>Más adelante</h3><ul class="list compact">${despues.map(filaFecha).join("")}</ul>` : ""}
-        <p class="small"><a href="#/fechas">Ver todas las fechas →</a></p>
+        <p class="small"><a href="#/fechas">Ver todos los recordatorios →</a></p>
       </section>
       ${cumples.length ? `<section class="card"><h2>🎂 Cumpleaños cercanos</h2><ul class="plain">${cumples.map((c) => `<li><strong>${esc(c.u.nombre)}</strong> — ${c.d}/${c.m}
         ${c.dias === 0 ? `<span class="pill st-hoy">¡Hoy!</span>` : `<span class="muted small">en ${c.dias} día${c.dias !== 1 ? "s" : ""}</span>`}
@@ -263,13 +263,13 @@
     else lista.sort((a, b) => new Date(b.cuando) - new Date(a.cuando));
     if (tipo) lista = lista.filter((f) => f.tipo === tipo);
     const chip = (v, t, label) => `<a class="chip ${ver === v && tipo === t ? "on" : ""}" href="#/fechas?ver=${v}${t ? "&tipo=" + t : ""}">${label}</a>`;
-    return `<div class="page-head"><h1>🗓️ Fechas y entregas</h1><div class="actions"><a class="btn" href="#/nueva">+ Nueva fecha</a></div></div>
+    return `<div class="page-head"><h1>🗓️ Recordatorios</h1><div class="actions"><a class="btn" href="#/nueva">+ Añadir recordatorio</a></div></div>
       <div class="filters">
         ${[["pendientes", "Pendientes"], ["pasadas", "Pasadas / listas"], ["todas", "Todas"]].map(([v, l]) => `<a class="chip ${ver === v ? "on" : ""}" href="#/fechas?ver=${v}${tipo ? "&tipo=" + tipo : ""}">${l}</a>`).join("")}
         <span class="sep"></span>
         ${chip(ver, "", "Todo tipo")}${Object.entries(TIPOS).map(([k, l]) => chip(ver, k, l)).join("")}
       </div>
-      <section class="card">${lista.length ? `<ul class="list">${lista.map(filaFecha).join("")}</ul>` : `<p class="muted">No hay fechas aquí. <a href="#/nueva">Agrega la primera</a>.</p>`}</section>`;
+      <section class="card">${lista.length ? `<ul class="list">${lista.map(filaFecha).join("")}</ul>` : `<p class="muted">No hay recordatorios aquí. <a href="#/nueva">Añade el primero</a>.</p>`}</section>`;
   }
 
   function vistaFormFecha(idFecha) {
@@ -278,17 +278,17 @@
     const def = new Date(Date.now() + 7 * 864e5);
     const pd = partes(def);
     const cuando = f ? valorLocal(f.cuando) : `${pd.dia}T23:59`;
-    return `<h1>${f ? "Editar fecha" : "Nueva fecha o entrega"}</h1>
+    return `<h1>${f ? "Editar recordatorio" : "Añadir recordatorio"}</h1>
       <form class="card form" data-form="fecha">
         ${f ? `<input type="hidden" name="id" value="${f.id}">` : ""}
         <label>Título <input name="titulo" required maxlength="200" value="${esc(f ? f.titulo : "")}" placeholder="ej. Taller 2 de Estadística"></label>
         <div class="row">
-          <label>Tipo <select name="tipo">${Object.entries(TIPOS).map(([k, l]) => `<option value="${k}" ${(f ? f.tipo : "entrega") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-          <label>Fecha y hora límite <input type="datetime-local" name="cuando" required value="${cuando}"></label>
+          <label>Tipo <select name="tipo">${Object.entries(TIPOS).map(([k, l]) => `<option value="${k}" ${(f ? f.tipo : "novedad") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label>Fecha y hora <input type="datetime-local" name="cuando" required value="${cuando}"></label>
         </div>
         <label>Materia / módulo <input name="materia" list="materias" value="${esc(f ? f.materia : "")}"></label>
         ${listaMaterias()}
-        <label>Detalles <textarea name="detalle" rows="5" placeholder="Qué hay que entregar, quién hace qué, formato, etc.">${esc(f ? f.detalle : "")}</textarea></label>
+        <label>Detalles <textarea name="detalle" rows="5" placeholder="La novedad, qué hay que entregar, quién hace qué, formato, etc.">${esc(f ? f.detalle : "")}</textarea></label>
         <label>Link (plataforma, enunciado, Drive…) <input name="link" value="${esc(f ? f.link : "")}" placeholder="https://"></label>
         <div class="actions"><button class="btn">Guardar</button><a class="btn ghost" href="${f ? "#/fecha/" + f.id : "#/fechas"}">Cancelar</a></div>
       </form>`;
@@ -313,14 +313,14 @@
     if (!f) return vistaNoEncontrado();
     const coms = D.comentarios.filter((c) => c.fecha === f.id);
     const st = estado(f);
-    return `<p class="small"><a href="#/fechas">← Fechas</a></p>
+    return `<p class="small"><a href="#/fechas">← Recordatorios</a></p>
       <section class="card event-detail st-${st}">
         <div class="page-head"><div><span class="kind k-${f.tipo}">${TIPOS[f.tipo]}</span><h1>${esc(f.titulo)}</h1></div>${pill(f)}</div>
         <p class="big">🗓️ ${fmtFecha(f.cuando)}</p>
         ${f.materia ? `<p>📚 ${esc(f.materia)}</p>` : ""}
         ${f.detalle ? `<div class="desc">${enlazar(f.detalle)}</div>` : ""}
         ${f.link ? `<p>🔗 <a href="${esc(f.link)}" target="_blank" rel="noopener">${esc(f.link)}</a></p>` : ""}
-        <p class="muted small">Agregada${f.por ? " por " + esc(f.por) : ""} ${relativo(f.creado)}</p>
+        <p class="muted small">Agregado${f.por ? " por " + esc(f.por) : ""} ${relativo(f.creado)}</p>
         <div class="actions wrap">
           <button class="btn" data-act="fecha-listo" data-id="${f.id}">${f.listo ? "↺ Marcar pendiente" : "✔ Marcar como listo"}</button>
           <a class="btn ghost" href="${esc(googleCal(f))}" target="_blank" rel="noopener">📅 Agregar a mi Google Calendar</a>
@@ -367,7 +367,7 @@
           <a class="btn ghost" href="#/calendario?y=${ant[0]}&m=${ant[1]}">←</a>
           <a class="btn ghost" href="#/calendario">Hoy</a>
           <a class="btn ghost" href="#/calendario?y=${sig[0]}&m=${sig[1]}">→</a>
-          <a class="btn" href="#/nueva">+ Fecha</a>
+          <a class="btn" href="#/nueva">+ Añadir recordatorio</a>
         </div></div>
       <div class="calendar">${DIAS.map((d) => `<div class="cal-head">${d}</div>`).join("")}${celdas}</div>
       <section class="card"><h2>📲 Alarmas en el celular</h2>
@@ -503,7 +503,7 @@
         <a class="brand" href="#/"><span class="mono">${esc(monograma())}</span><span class="brand-txt"><small>${esc(D.lema || "Especialización · CUN")}</small>${esc(D.nombre)}</span></a>
         <button class="menu-btn" type="button" aria-label="Menú" data-act="menu">☰</button>
         <nav class="nav">
-          ${link("inicio", "Inicio" + (n ? ` <span class="badge">${n}</span>` : ""))}${link("calendario", "Calendario")}${link("fechas", "Fechas")}
+          ${link("inicio", "Inicio" + (n ? ` <span class="badge">${n}</span>` : ""))}${link("calendario", "Calendario")}${link("fechas", "Recordatorios")}
           ${link("archivos", "Archivos y links")}${link("muro", "Muro")}${link("integrantes", "Integrantes")}
           ${autor ? `<button class="link-btn" data-act="cambiar-autor" title="Cambiar de nombre">👤 ${esc(primerNombre(autor))}</button>` : ""}
         </nav>
@@ -548,7 +548,7 @@
           break;
         case "fecha": {
           const antes = new Set(D.fechas.map((x) => x.id));
-          await op({ op: "fecha", ...datos }, "Fecha guardada. Todo el grupo ya la ve.");
+          await op({ op: "fecha", ...datos }, "Recordatorio guardado. Todo el grupo ya lo ve.");
           const nueva = datos.id || (D.fechas.find((x) => !antes.has(x.id)) || {}).id;
           location.hash = nueva ? "#/fecha/" + nueva : "#/fechas";
           break;
@@ -589,7 +589,7 @@
   });
 
   const CONFIRMAR = {
-    "fecha-borrar": "¿Borrar esta fecha para todo el grupo?",
+    "fecha-borrar": "¿Borrar este recordatorio para todo el grupo?",
     "recurso-borrar": "¿Eliminar esto para todo el grupo?",
     "comentario-borrar": "¿Borrar este mensaje?",
     "integrante-borrar": "¿Quitar a esta persona de la lista de integrantes?",

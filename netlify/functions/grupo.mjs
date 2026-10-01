@@ -22,7 +22,7 @@ export const config = { path: ["/api/grupo", "/api/grupo/*"] };
 
 export const MAX_ARCHIVO = 4 * 1024 * 1024; // límite práctico de una función de Netlify
 const KEY = "db";
-const TIPOS_FECHA = ["entrega", "parcial", "reunion", "clase", "otro"];
+const TIPOS_FECHA = ["novedad", "entrega", "parcial", "reunion", "clase", "otro"];
 const CATEGORIAS = ["solucion", "entrega", "material", "guia", "otro"];
 const INLINE = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "text/plain"]);
 
@@ -214,7 +214,7 @@ async function cambiar(store, op) {
 
 const icsTexto = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 const icsFecha = (d) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-const NOMBRE_TIPO = { entrega: "Entrega", parcial: "Parcial", reunion: "Reunión", clase: "Clase", otro: "Fecha" };
+const NOMBRE_TIPO = { novedad: "Novedad", entrega: "Entrega", parcial: "Parcial", reunion: "Reunión", clase: "Clase", otro: "Fecha" };
 
 export function calendarioIcs(db) {
   const sello = icsFecha(new Date());

@@ -28,7 +28,7 @@ publicar el sitio.
 
 ## Qué trae
 
-- **Fechas** (entregas, parciales, reuniones, clases) con materia, detalles, link
+- **Recordatorios** (novedades, entregas, parciales, reuniones, clases) con materia, detalles, link
   y comentarios. Cualquiera puede crear, editar, marcar como lista o borrar.
 - **Alarmas**: en el inicio, lo vencido en rojo, lo de hoy y los próximos 3 días en
   naranja, lo de la semana en amarillo. El menú cuenta lo urgente.

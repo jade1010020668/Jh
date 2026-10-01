@@ -198,6 +198,7 @@ details summary { cursor: pointer; color: var(--gold-hi); margin-bottom: 8px; }
   font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .14em; padding: 4px 10px; border-radius: 999px;
   white-space: nowrap; display: inline-block; color: var(--gold-hi); border: 1px solid rgba(212, 175, 55, .35); background: rgba(212, 175, 55, .06);
 }
+.k-novedad { color: var(--jade); border-color: rgba(147, 211, 171, .4); background: var(--jade-bg); }
 .k-parcial { color: var(--ruby); border-color: rgba(229, 138, 138, .4); background: var(--ruby-bg); }
 .k-reunion { color: var(--sky); border-color: rgba(169, 188, 255, .4); background: var(--sky-bg); }
 .k-clase { color: var(--violet); border-color: rgba(205, 176, 255, .4); background: var(--violet-bg); }
@@ -242,6 +243,7 @@ details summary { cursor: pointer; color: var(--gold-hi); margin-bottom: 8px; }
 .cal-num { font: 600 1.05rem/1 var(--serif); color: var(--muted); padding: 2px 2px 4px; }
 .cal-day.today .cal-num { color: var(--gold-hi); }
 .cal-ev { display: block; font-size: .7rem; line-height: 1.3; padding: 3px 6px; margin-top: 3px; border-radius: 6px; text-decoration: none; background: rgba(212, 175, 55, .1); color: var(--gold-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 2px solid var(--gold); }
+.cal-ev.k-novedad { background: var(--jade-bg); color: var(--jade); border-left-color: var(--jade); }
 .cal-ev.k-parcial { background: var(--ruby-bg); color: var(--ruby); border-left-color: var(--ruby); }
 .cal-ev.k-reunion { background: var(--sky-bg); color: var(--sky); border-left-color: var(--sky); }
 .cal-ev.k-clase { background: var(--violet-bg); color: var(--violet); border-left-color: var(--violet); }
