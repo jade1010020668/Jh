@@ -1,4 +1,4 @@
-/* Grupo CUN — la app del grupo de estudio.
+/* Grupo 3 · CUN — el tablero del grupo de estudio.
    Página de una sola vista (rutas con #) que habla con /api/grupo (Netlify Function). */
 (function () {
   "use strict";
@@ -27,6 +27,8 @@
     const corto = u.length > 45 ? u.slice(0, 42) + "…" : u;
     return `<a href="${u}" target="_blank" rel="noopener">${corto}</a>`;
   });
+  // "Grupo 3" → "3"; otro nombre → su inicial
+  const monograma = () => { const m = /(\d+)\s*$/.exec(D.nombre); return m ? m[1] : (D.nombre[0] || "G").toUpperCase(); };
   const primerNombre = (n) => (n ? n.split(" ")[0] : "Alguien");
 
   // Partes de una fecha vistas en hora de Colombia
@@ -219,10 +221,19 @@
     const recientes = muro.filter((c) => !c.fijado).slice(-4).reverse();
     const ultimos = D.recursos.slice(-5).reverse();
 
-    return `<div class="page-head">
-        <h1>${autor ? `Hola, ${esc(primerNombre(autor))} 👋` : esc(D.nombre)}</h1>
+    const pendientes = D.fechas.filter((f) => !f.listo && new Date(f.cuando) >= ahora).length;
+    const n = urgentes();
+    return `<section class="hero" data-mono="${esc(monograma())}">
+        <div class="eyebrow">Especialización · CUN</div>
+        <h1>${esc(D.nombre)}</h1>
+        <p class="hero-sub">${autor ? `Bienvenido/a, ${esc(primerNombre(autor))}. ` : ""}${n ? `Hay <strong>${n}</strong> ${n === 1 ? "pendiente urgente" : "pendientes urgentes"}.` : pendientes ? `${pendientes} ${pendientes === 1 ? "entrega pendiente" : "entregas pendientes"}, ninguna urgente.` : "Todo al día."}</p>
+        <div class="hero-stats">
+          <div><b>${pendientes}</b><span>Pendientes</span></div>
+          <div><b>${D.recursos.length}</b><span>Archivos y links</span></div>
+          <div><b>${D.integrantes.length}</b><span>Integrantes</span></div>
+        </div>
         <div class="actions"><a class="btn" href="#/nueva">+ Fecha / entrega</a><a class="btn ghost" href="#/archivos">+ Archivo o link</a></div>
-      </div>
+      </section>
       <section class="card">
         <h2>🔔 Alarmas</h2>
         ${al.length ? `<ul class="list">${al.map(filaFecha).join("")}</ul>` : `<p class="muted">Nada pendiente en los próximos 7 días. 🎉</p>`}
@@ -486,7 +497,7 @@
     const link = (k, label) => `<a href="#/${k === "inicio" ? "" : k}" class="${activo === k ? "active" : ""}">${label}</a>`;
     const permiso = "Notification" in window && Notification.permission === "default" && !guardado.get("notif-no");
     $app.innerHTML = `<header class="topbar">
-        <a class="brand" href="#/">🎓 ${esc(D.nombre)}</a>
+        <a class="brand" href="#/"><span class="mono">${esc(monograma())}</span><span class="brand-txt"><small>Especialización · CUN</small>${esc(D.nombre)}</span></a>
         <button class="menu-btn" type="button" aria-label="Menú" data-act="menu">☰</button>
         <nav class="nav">
           ${link("inicio", "Inicio" + (n ? ` <span class="badge">${n}</span>` : ""))}${link("calendario", "Calendario")}${link("fechas", "Fechas")}

@@ -34,12 +34,16 @@ class ErrorCliente extends Error {
 
 const texto = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const id = () => crypto.randomBytes(9).toString("base64url");
-const vacio = () => ({ nombre: "Grupo CUN", integrantes: [], fechas: [], comentarios: [], recursos: [] });
+const NOMBRE = "Grupo 3";
+const vacio = () => ({ nombre: NOMBRE, integrantes: [], fechas: [], comentarios: [], recursos: [] });
 
 /** Convierte el formato de la primera versión (con cuentas) al tablero sin cuentas. */
 export function normalizar(db) {
   if (!db) return null;
-  if (!db.usuarios) return db;
+  if (!db.usuarios) {
+    if (db.nombre === "Grupo CUN") db.nombre = NOMBRE; // nombre por defecto de la primera versión
+    return db;
+  }
   const nombres = {};
   const integrantes = Object.values(db.usuarios).map((u) => {
     nombres[u.id] = u.nombre;
@@ -48,7 +52,7 @@ export function normalizar(db) {
   });
   const autor = (x) => ({ ...x, por: nombres[x.por] || "" });
   return {
-    nombre: db.grupo?.nombre || "Grupo CUN", integrantes,
+    nombre: db.grupo?.nombre && db.grupo.nombre !== "Grupo CUN" ? db.grupo.nombre : NOMBRE, integrantes,
     fechas: (db.fechas || []).map(autor), comentarios: (db.comentarios || []).map(autor),
     recursos: (db.recursos || []).map(autor)
   };
@@ -211,7 +215,7 @@ const NOMBRE_TIPO = { entrega: "Entrega", parcial: "Parcial", reunion: "Reunión
 
 export function calendarioIcs(db) {
   const sello = icsFecha(new Date());
-  const lineas = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//grupo-cun//ES", "CALSCALE:GREGORIAN",
+  const lineas = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//grupo-3-cun//ES", "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH", `X-WR-CALNAME:${icsTexto(db.nombre)}`];
   for (const f of db.fechas) {
     const ini = new Date(f.cuando);

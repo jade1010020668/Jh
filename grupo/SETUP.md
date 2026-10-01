@@ -1,4 +1,4 @@
-# Grupo CUN — cómo funciona en línea
+# Grupo 3 · CUN — cómo funciona en línea
 
 ## Enlace
 

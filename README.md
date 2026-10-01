@@ -15,7 +15,7 @@ enlace que se actualiza solo.
 
 En línea en **https://fabulous-unicorn-235c34.netlify.app/sala/** (Netlify publica solo cada cambio en `main`; los equipos se guardan en Netlify Blobs vía `netlify/functions/sala.mjs`). Detalles y opciones: **[sala/SETUP.md](sala/SETUP.md)**.
 
-## 🎓 [Grupo CUN](grupo/) — app del grupo de estudio
+## 🎓 [Grupo 3 · CUN](grupo/) — tablero del grupo de estudio
 
 Un solo lugar para el grupo de la especialización:
 
