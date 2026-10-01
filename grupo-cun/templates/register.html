@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Crear cuenta · {{ group_name }}{% endblock %}
+{% block content %}
+<div class="auth">
+  <h1>Crear cuenta</h1>
+  <p class="muted">Necesitas el <strong>código del grupo</strong>; así nadie de afuera puede entrar.</p>
+  <form method="post" class="card form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Código del grupo <input name="group_code" value="{{ form.get('group_code','') }}" required></label>
+    <label>Tu nombre completo <input name="name" value="{{ form.get('name','') }}" required></label>
+    <label>Usuario (para entrar) <input name="username" value="{{ form.get('username','') }}" autocomplete="username" required placeholder="ej. laura.g"></label>
+    <label>Contraseña <input name="password" type="password" minlength="6" autocomplete="new-password" required></label>
+    <label>Correo <input name="email" type="email" value="{{ form.get('email','') }}"></label>
+    <label>WhatsApp <input name="whatsapp" value="{{ form.get('whatsapp','') }}" placeholder="3001234567"></label>
+    <button class="btn" type="submit">Crear cuenta</button>
+  </form>
+  <p class="center"><a href="{{ url_for('login') }}">Ya tengo cuenta</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Archivos y links · {{ group_name }}{% endblock %}
+{% block content %}
+<h1>📂 Archivos y links</h1>
+
+<section class="card" id="subir">
+  <h2>Subir algo para el grupo</h2>
+  <form method="post" action="{{ url_for('resource_upload') }}" enctype="multipart/form-data" class="form">
+    {{ m.csrf() }}
+    <div class="tabs" role="tablist">
+      <label class="tab"><input type="radio" name="mode" value="archivo" checked onchange="pickMode(this.value)"> 📄 Archivo</label>
+      <label class="tab"><input type="radio" name="mode" value="link" onchange="pickMode(this.value)"> 🔗 Link</label>
+    </div>
+    <label data-mode="archivo">Archivo (máx. {{ max_upload_mb }} MB) <input type="file" name="file"></label>
+    <label data-mode="link" hidden>Link <input name="url" placeholder="https://drive.google.com/…"></label>
+    <div class="row">
+      <label>Nombre <input name="title" maxlength="200" placeholder="Si lo dejas vacío usamos el del archivo"></label>
+      <label>Categoría
+        <select name="category">{% for key, label in RESOURCE_CATEGORIES.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
+      </label>
+    </div>
+    <label>Materia / módulo <input name="subject" list="subjects"></label>
+    <datalist id="subjects">{% for s in subjects %}<option value="{{ s }}">{% endfor %}</datalist>
+    <label>Nota (opcional) <input name="description" placeholder="ej. Parcial 1 corregido, ojo con el punto 4"></label>
+    <button class="btn" type="submit">Subir</button>
+  </form>
+</section>
+
+<form class="filters" method="get">
+  <input name="q" value="{{ text }}" placeholder="Buscar…" class="search">
+  <select name="cat" onchange="this.form.submit()">
+    <option value="">Todas las categorías</option>
+    {% for key, label in RESOURCE_CATEGORIES.items() %}<option value="{{ key }}" {{ 'selected' if cat == key }}>{{ label }}</option>{% endfor %}
+  </select>
+  <select name="tipo" onchange="this.form.submit()">
+    <option value="">Archivos y links</option>
+    <option value="archivo" {{ 'selected' if kind == 'archivo' }}>Solo archivos</option>
+    <option value="link" {{ 'selected' if kind == 'link' }}>Solo links</option>
+  </select>
+  {% if subjects %}
+  <select name="materia" onchange="this.form.submit()">
+    <option value="">Todas las materias</option>
+    {% for s in subjects %}<option {{ 'selected' if subject == s }}>{{ s }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <button class="btn small" type="submit">Filtrar</button>
+</form>
+
+<section class="card">
+  {% if items %}
+  <ul class="list">
+    {% for r in items %}{{ m.resource_row(r, deletable=True) }}{% endfor %}
+  </ul>
+  {% else %}<p class="muted">No hay nada con ese filtro.</p>{% endif %}
+</section>
+<script>
+function pickMode(mode) {
+  document.querySelectorAll('[data-mode]').forEach(el => { el.hidden = el.dataset.mode !== mode; });
+  if (mode === 'link') document.querySelector('input[name=file]').value = '';
+  else document.querySelector('input[name=url]').value = '';
+}
+</script>
+{% endblock %}

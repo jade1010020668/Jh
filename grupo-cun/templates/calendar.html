@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Calendario · {{ group_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>📆 {{ month_name|capitalize }} {{ first.year }}</h1>
+  <div class="actions">
+    <a class="btn ghost" href="{{ url_for('calendar_view', y=prev_m.year, m=prev_m.month) }}">←</a>
+    <a class="btn ghost" href="{{ url_for('calendar_view') }}">Hoy</a>
+    <a class="btn ghost" href="{{ url_for('calendar_view', y=next_m.year, m=next_m.month) }}">→</a>
+    <a class="btn" href="{{ url_for('event_form') }}">+ Fecha</a>
+  </div>
+</div>
+<div class="calendar">
+  {% for d in day_names %}<div class="cal-head">{{ d }}</div>{% endfor %}
+  {% for week in weeks %}{% for day in week %}
+    <div class="cal-day {{ 'other' if day.month != first.month }} {{ 'today' if day == today }}">
+      <div class="cal-num">{{ day.day }}</div>
+      {% for ev in by_day.get(day, []) %}
+        <a class="cal-ev k-{{ ev.kind }} st-{{ ev.status(now) }}" href="{{ url_for('event_detail', event_id=ev.id) }}" title="{{ ev.title }}">
+          {{ ev.due.strftime('%H:%M') }} {{ ev.title }}</a>
+      {% endfor %}
+    </div>
+  {% endfor %}{% endfor %}
+</div>
+
+<section class="card">
+  <h2>📲 Alarmas en el celular</h2>
+  <p>Para que las fechas del grupo lleguen como recordatorio a tu celular, suscríbete a este calendario
+    (se actualiza solo cada vez que alguien agrega una fecha):</p>
+  <div class="copy-row">
+    <input readonly value="{{ feed_url }}" id="feed-url" onclick="this.select()">
+    <button class="btn small" type="button" data-copy="#feed-url">Copiar</button>
+  </div>
+  <ul class="small">
+    <li><strong>Google Calendar:</strong> desde un computador, en calendar.google.com → «Otros calendarios» → <em>+</em> → «Desde URL» → pega el enlace. Luego aparece en el celular.</li>
+    <li><strong>iPhone:</strong> Ajustes → Calendario → Cuentas → Añadir cuenta → Otra → «Añadir calendario suscrito».</li>
+    <li><strong>Outlook:</strong> Agregar calendario → Suscribirse desde la web.</li>
+  </ul>
+  <p class="muted small">Google tarda algunas horas en refrescar calendarios suscritos. Para algo urgente usa
+    el botón «Agregar a mi Google Calendar» dentro de cada fecha, que la crea al instante.
+    No compartas este enlace fuera del grupo.</p>
+</section>
+{% endblock %}

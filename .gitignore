@@ -1,2 +1,5 @@
 node_modules/
 .netlify/
+__pycache__/
+*.pyc
+grupo-cun/data/

@@ -1,0 +1,69 @@
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ csrf_token }}">{% endmacro %}
+
+{% macro status_pill(ev) %}
+  {% set st = ev.status(now) %}
+  <span class="pill st-{{ st }}">
+    {%- if st == 'hecho' %}✔ Listo
+    {%- elif st == 'vencido' %}⚠ Vencido
+    {%- elif st == 'hoy' %}⏰ Hoy
+    {%- elif st == 'pronto' %}🔥 {{ ev.due|rel }}
+    {%- else %}{{ ev.due|rel }}{% endif -%}
+  </span>
+{% endmacro %}
+
+{% macro event_row(ev, back=None) %}
+<li class="event-row st-{{ ev.status(now) }}">
+  <div class="kind k-{{ ev.kind }}">{{ ev.kind_label }}</div>
+  <div class="grow">
+    <a class="title" href="{{ url_for('event_detail', event_id=ev.id) }}">{{ ev.title }}</a>
+    <div class="muted small">🗓️ {{ ev.due|dt }}{% if ev.subject %} · 📚 {{ ev.subject }}{% endif %}
+      {% if ev.comments %} · 💬 {{ ev.comments|length }}{% endif %}</div>
+  </div>
+  {{ status_pill(ev) }}
+  <form method="post" action="{{ url_for('event_toggle', event_id=ev.id) }}" class="inline">
+    {{ csrf() }}<input type="hidden" name="back" value="{{ back or request.full_path }}">
+    <button class="icon-btn" title="{{ 'Marcar pendiente' if ev.done else 'Marcar como listo' }}">{{ '↺' if ev.done else '✔' }}</button>
+  </form>
+</li>
+{% endmacro %}
+
+{% macro resource_row(r, deletable=False) %}
+<li class="res-row">
+  <div class="res-icon">{% if r.kind == 'link' %}🔗{% elif r.mimetype.startswith('image/') %}🖼️{% elif r.mimetype == 'application/pdf' %}📕{% else %}📄{% endif %}</div>
+  <div class="grow">
+    <a class="title" href="{{ url_for('resource_download', res_id=r.id, name=r.filename) if r.kind == 'archivo' else r.url }}" target="_blank" rel="noopener">{{ r.title }}</a>
+    <div class="muted small">{{ r.category_label }}{% if r.subject %} · 📚 {{ r.subject }}{% endif %}
+      {% if r.kind == 'archivo' %} · {{ r.size|size }}{% endif %}
+      · {{ r.created_by.first_name if r.created_by else '—' }}, {{ r.created_at|rel }}</div>
+    {% if r.description %}<div class="small">{{ r.description }}</div>{% endif %}
+  </div>
+  {% if r.kind == 'archivo' %}<a class="icon-btn" href="{{ url_for('resource_download', res_id=r.id, name=r.filename, descargar=1) }}" title="Descargar">⬇</a>{% endif %}
+  {% if deletable %}
+  <form method="post" action="{{ url_for('resource_delete', res_id=r.id) }}" class="inline" onsubmit="return confirm('¿Eliminar esto para todo el grupo?')">
+    {{ csrf() }}<button class="icon-btn danger" title="Eliminar">🗑</button>
+  </form>
+  {% endif %}
+</li>
+{% endmacro %}
+
+{% macro post(c, back) %}
+<div class="post {{ 'pinned' if c.pinned }}">
+  <div class="post-head">
+    <strong>{{ c.author.first_name if c.author else '—' }}</strong>
+    <span class="muted small">{{ c.created_at|rel }}{% if c.pinned %} · 📌 fijado{% endif %}</span>
+    <span class="grow"></span>
+    {% if c.event_id is none %}
+    <form method="post" action="{{ url_for('comment_pin', cid=c.id) }}" class="inline">
+      {{ csrf() }}<input type="hidden" name="back" value="{{ back }}">
+      <button class="link-btn small">{{ 'Desfijar' if c.pinned else 'Fijar' }}</button>
+    </form>
+    {% endif %}
+    {% if g.user.id == c.author_id %}
+    <form method="post" action="{{ url_for('comment_delete', cid=c.id) }}" class="inline" onsubmit="return confirm('¿Borrar este mensaje?')">
+      {{ csrf() }}<button class="link-btn small danger">Borrar</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="post-body">{{ c.body|urlize(40, true, target='_blank') }}</div>
+</div>
+{% endmacro %}

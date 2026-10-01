@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ ev.title }} · {{ group_name }}{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('events') }}">← Fechas</a></p>
+<section class="card event-detail st-{{ ev.status(now) }}">
+  <div class="page-head">
+    <div>
+      <span class="kind k-{{ ev.kind }}">{{ ev.kind_label }}</span>
+      <h1>{{ ev.title }}</h1>
+    </div>
+    {{ m.status_pill(ev) }}
+  </div>
+  <p class="big">🗓️ {{ ev.due|dt }}</p>
+  {% if ev.subject %}<p>📚 {{ ev.subject }}</p>{% endif %}
+  {% if ev.description %}<div class="desc">{{ ev.description|urlize(40, true, target='_blank') }}</div>{% endif %}
+  {% if ev.link %}<p>🔗 <a href="{{ ev.link }}" target="_blank" rel="noopener">{{ ev.link }}</a></p>{% endif %}
+  <p class="muted small">Agregada por {{ ev.created_by.name if ev.created_by else '—' }}, {{ ev.created_at|rel }}</p>
+
+  <div class="actions wrap">
+    <form method="post" action="{{ url_for('event_toggle', event_id=ev.id) }}" class="inline">
+      {{ m.csrf() }}<button class="btn">{{ '↺ Marcar pendiente' if ev.done else '✔ Marcar como listo' }}</button>
+    </form>
+    <a class="btn ghost" href="{{ ev.google_calendar_url() }}" target="_blank" rel="noopener">📅 Agregar a mi Google Calendar</a>
+    <a class="btn ghost" href="{{ ev.whatsapp_share_url() }}" target="_blank" rel="noopener">💬 Avisar por WhatsApp</a>
+    <a class="btn ghost" href="{{ url_for('event_form', event_id=ev.id) }}">✏️ Editar</a>
+    <form method="post" action="{{ url_for('event_delete', event_id=ev.id) }}" class="inline" onsubmit="return confirm('¿Borrar esta fecha para todo el grupo?')">
+      {{ m.csrf() }}<button class="btn ghost danger">🗑 Borrar</button>
+    </form>
+  </div>
+</section>
+
+<section class="card" id="comentarios">
+  <h2>💬 Comentarios</h2>
+  {% for c in ev.comments %}{{ m.post(c, url_for('event_detail', event_id=ev.id)) }}{% else %}<p class="muted">Sin comentarios todavía.</p>{% endfor %}
+  <form method="post" action="{{ url_for('event_comment', event_id=ev.id) }}" class="form">
+    {{ m.csrf() }}
+    <textarea name="body" rows="3" required placeholder="Ej: yo hago la introducción, ¿alguien toma el punto 3?"></textarea>
+    <button class="btn" type="submit">Comentar</button>
+  </form>
+</section>
+{% endblock %}

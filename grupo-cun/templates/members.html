@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Integrantes · {{ group_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>👥 Integrantes</h1>
+  <div class="actions"><a class="btn ghost" href="{{ url_for('profile') }}">Editar mis datos</a></div>
+</div>
+<p class="muted small">Solo las personas con cuenta en la app ven estos datos.</p>
+<div class="members">
+  {% for u in users %}
+  <div class="card member">
+    <div class="avatar">{{ u.name[:1]|upper }}</div>
+    <h3>{{ u.name }}{% if u.id == g.user.id %} <span class="muted small">(tú)</span>{% endif %}</h3>
+    <ul class="plain small">
+      {% if u.email %}<li>✉️ <a href="mailto:{{ u.email }}">{{ u.email }}</a></li>{% endif %}
+      {% if u.phone %}<li>📞 <a href="tel:{{ u.phone }}">{{ u.phone }}</a></li>{% endif %}
+      {% if u.whatsapp_link %}<li>💬 <a href="{{ u.whatsapp_link }}" target="_blank" rel="noopener">WhatsApp {{ u.whatsapp or u.phone }}</a></li>{% endif %}
+      {% if u.birthday %}<li>🎂 {{ u.birthday.day }}/{{ u.birthday.month }}</li>{% endif %}
+    </ul>
+    {% if u.about %}<p class="small about">{{ u.about|urlize(40, true, target='_blank') }}</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

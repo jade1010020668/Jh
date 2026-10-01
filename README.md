@@ -15,6 +15,13 @@ enlace que se actualiza solo.
 
 En línea en **https://fabulous-unicorn-235c34.netlify.app/sala/** (Netlify publica solo cada cambio en `main`; los equipos se guardan en Netlify Blobs vía `netlify/functions/sala.mjs`). Detalles y opciones: **[sala/SETUP.md](sala/SETUP.md)**.
 
+## 🎓 [Grupo CUN](grupo-cun/) — app del grupo de estudio
+
+Fechas de entregas y parciales con alarmas, archivos (soluciones de parciales,
+guías), links, muro de mensajes y datos de contacto de cada integrante. Es una app
+Python (Flask) para montar en **Render** o **Hugging Face Spaces** con una base de
+datos gratis en Neon. Cómo montarla: **[grupo-cun/README.md](grupo-cun/README.md)**.
+
 ## 🧮 [Calculadora](index.html)
 
 Calculadora sencilla en una sola página.

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if ev else 'Nueva' }} fecha · {{ group_name }}{% endblock %}
+{% block content %}
+<h1>{{ 'Editar fecha' if ev else 'Nueva fecha o entrega' }}</h1>
+<form method="post" class="card form">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <label>Título <input name="title" required maxlength="200" value="{{ form.get('title', ev.title if ev else '') }}" placeholder="ej. Taller 2 de Estadística"></label>
+  <div class="row">
+    <label>Tipo
+      <select name="kind">
+        {% set cur = form.get('kind', ev.kind if ev else 'entrega') %}
+        {% for key, label in EVENT_KINDS.items() %}<option value="{{ key }}" {{ 'selected' if cur == key }}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Fecha y hora límite
+      <input type="datetime-local" name="due" required value="{{ form.get('due', ev.due.strftime('%Y-%m-%dT%H:%M') if ev else default_due) }}">
+    </label>
+  </div>
+  <label>Materia / módulo <input name="subject" list="subjects" value="{{ form.get('subject', ev.subject if ev else '') }}"></label>
+  <datalist id="subjects">{% for s in subjects %}<option value="{{ s }}">{% endfor %}</datalist>
+  <label>Detalles <textarea name="description" rows="5" placeholder="Qué hay que entregar, quién hace qué, formato, etc.">{{ form.get('description', ev.description if ev else '') }}</textarea></label>
+  <label>Link (plataforma, enunciado, Drive…) <input name="link" value="{{ form.get('link', ev.link if ev else '') }}" placeholder="https://"></label>
+  <div class="actions">
+    <button class="btn" type="submit">Guardar</button>
+    <a class="btn ghost" href="{{ url_for('event_detail', event_id=ev.id) if ev else url_for('events') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

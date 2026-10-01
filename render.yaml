@@ -1,0 +1,22 @@
+# Render "Blueprint": en render.com → New → Blueprint → elige este repo.
+# Crea la app del grupo (carpeta grupo-cun/). La base de datos va aparte (ver grupo-cun/README.md).
+services:
+  - type: web
+    name: grupo-cun
+    runtime: python
+    plan: free
+    rootDir: grupo-cun
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --preload
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GROUP_NAME
+        value: Grupo CUN
+      - key: GROUP_CODE
+        sync: false
+      - key: DATABASE_URL
+        sync: false

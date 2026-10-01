@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ group_name }}{% endblock %}</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+{% if g.user %}
+<header class="topbar">
+  <a class="brand" href="{{ url_for('dashboard') }}">🎓 {{ group_name }}</a>
+  <button class="menu-btn" type="button" aria-label="Menú" onclick="document.body.classList.toggle('nav-open')">☰</button>
+  <nav class="nav">
+    {% set ep = request.endpoint %}
+    <a href="{{ url_for('dashboard') }}" class="{{ 'active' if ep == 'dashboard' }}">Inicio
+      {% if urgent_count %}<span class="badge">{{ urgent_count }}</span>{% endif %}</a>
+    <a href="{{ url_for('calendar_view') }}" class="{{ 'active' if ep == 'calendar_view' }}">Calendario</a>
+    <a href="{{ url_for('events') }}" class="{{ 'active' if ep in ('events','event_detail','event_form') }}">Fechas</a>
+    <a href="{{ url_for('resources') }}" class="{{ 'active' if ep == 'resources' }}">Archivos y links</a>
+    <a href="{{ url_for('wall') }}" class="{{ 'active' if ep == 'wall' }}">Muro</a>
+    <a href="{{ url_for('members') }}" class="{{ 'active' if ep == 'members' }}">Integrantes</a>
+    <a href="{{ url_for('profile') }}" class="{{ 'active' if ep == 'profile' }}">Mi perfil</a>
+    <form method="post" action="{{ url_for('logout') }}" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <button class="link-btn" type="submit">Salir</button>
+    </form>
+  </nav>
+</header>
+<div id="notif-bar" class="notif-bar" hidden>
+  🔔 ¿Quieres que te avise el navegador cuando se acerque una entrega?
+  <button type="button" id="notif-yes" class="btn small">Activar alarmas</button>
+  <button type="button" id="notif-no" class="link-btn">Ahora no</button>
+</div>
+{% endif %}
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+{% if g.user %}<script src="{{ url_for('static', filename='app.js') }}" data-api="{{ url_for('api_alarms') }}"></script>{% endif %}
+</body>
+</html>
