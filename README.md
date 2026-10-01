@@ -15,6 +15,20 @@ enlace que se actualiza solo.
 
 En línea en **https://fabulous-unicorn-235c34.netlify.app/sala/** (Netlify publica solo cada cambio en `main`; los equipos se guardan en Netlify Blobs vía `netlify/functions/sala.mjs`). Detalles y opciones: **[sala/SETUP.md](sala/SETUP.md)**.
 
+## 🎓 [Grupo 3 «El mejor grupo»](grupo/) — tablero del grupo de estudio
+
+Un solo lugar para el grupo de la especialización:
+
+- **Fechas** de entregas, parciales y reuniones con **alarmas** (en la app, en el
+  navegador y en el calendario del celular).
+- **Archivos** (soluciones de parciales, guías, entregas) y **links** para todos.
+- **Muro** de mensajes y comentarios en cada fecha.
+- **Datos de contacto** de cada integrante, con botón de WhatsApp.
+
+Es un solo tablero, sin cuentas: quien tiene el enlace entra y ve todo.
+
+En línea en **https://fabulous-unicorn-235c34.netlify.app/grupo/** (los datos y archivos se guardan en Netlify Blobs vía `netlify/functions/grupo.mjs`). Detalles: **[grupo/SETUP.md](grupo/SETUP.md)**.
+
 ## 🧮 [Calculadora](index.html)
 
 Calculadora sencilla en una sola página.
