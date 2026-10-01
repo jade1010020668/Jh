@@ -35,13 +35,15 @@ class ErrorCliente extends Error {
 const texto = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const id = () => crypto.randomBytes(9).toString("base64url");
 const NOMBRE = "Grupo 3";
-const vacio = () => ({ nombre: NOMBRE, integrantes: [], fechas: [], comentarios: [], recursos: [] });
+const LEMA = "El mejor grupo";
+const vacio = () => ({ nombre: NOMBRE, lema: LEMA, integrantes: [], fechas: [], comentarios: [], recursos: [] });
 
 /** Convierte el formato de la primera versión (con cuentas) al tablero sin cuentas. */
 export function normalizar(db) {
   if (!db) return null;
   if (!db.usuarios) {
     if (db.nombre === "Grupo CUN") db.nombre = NOMBRE; // nombre por defecto de la primera versión
+    if (db.lema === undefined) db.lema = LEMA;
     return db;
   }
   const nombres = {};
@@ -52,7 +54,7 @@ export function normalizar(db) {
   });
   const autor = (x) => ({ ...x, por: nombres[x.por] || "" });
   return {
-    nombre: db.grupo?.nombre && db.grupo.nombre !== "Grupo CUN" ? db.grupo.nombre : NOMBRE, integrantes,
+    nombre: db.grupo?.nombre && db.grupo.nombre !== "Grupo CUN" ? db.grupo.nombre : NOMBRE, lema: LEMA, integrantes,
     fechas: (db.fechas || []).map(autor), comentarios: (db.comentarios || []).map(autor),
     recursos: (db.recursos || []).map(autor)
   };
@@ -97,6 +99,7 @@ export function aplicar(actual, op) {
       const nombre = texto(op.nombre, 60);
       if (!nombre) throw new ErrorCliente("Escribe un nombre.");
       db.nombre = nombre;
+      if (typeof op.lema === "string") db.lema = texto(op.lema, 80);
       break;
     }
     case "integrante": {
@@ -216,7 +219,7 @@ const NOMBRE_TIPO = { entrega: "Entrega", parcial: "Parcial", reunion: "Reunión
 export function calendarioIcs(db) {
   const sello = icsFecha(new Date());
   const lineas = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//grupo-3-cun//ES", "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH", `X-WR-CALNAME:${icsTexto(db.nombre)}`];
+    "METHOD:PUBLISH", `X-WR-CALNAME:${icsTexto(db.nombre + (db.lema ? " «" + db.lema + "»" : ""))}`];
   for (const f of db.fechas) {
     const ini = new Date(f.cuando);
     const desc = [f.detalle, f.link].filter(Boolean).join("\n\n");

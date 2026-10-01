@@ -226,6 +226,7 @@
     return `<section class="hero" data-mono="${esc(monograma())}">
         <div class="eyebrow">Especialización · CUN</div>
         <h1>${esc(D.nombre)}</h1>
+        ${D.lema ? `<div class="lema">«${esc(D.lema)}»</div>` : ""}
         <p class="hero-sub">${autor ? `Bienvenido/a, ${esc(primerNombre(autor))}. ` : ""}${n ? `Hay <strong>${n}</strong> ${n === 1 ? "pendiente urgente" : "pendientes urgentes"}.` : pendientes ? `${pendientes} ${pendientes === 1 ? "entrega pendiente" : "entregas pendientes"}, ninguna urgente.` : "Todo al día."}</p>
         <div class="hero-stats">
           <div><b>${pendientes}</b><span>Pendientes</span></div>
@@ -448,7 +449,9 @@
       </div>`).join("")}</div>
       <form class="card form" data-form="nombre-grupo">
         <h2>⚙️ Nombre del tablero</h2>
-        <div class="copy-row"><input name="nombre" value="${esc(D.nombre)}" required maxlength="60"><button class="btn small">Guardar</button></div>
+        <div class="row"><label>Nombre <input name="nombre" value="${esc(D.nombre)}" required maxlength="60"></label>
+          <label>Lema <input name="lema" value="${esc(D.lema || "")}" maxlength="80" placeholder="El mejor grupo"></label></div>
+        <div class="actions"><button class="btn small">Guardar</button></div>
       </form>`;
   }
 
@@ -493,11 +496,11 @@
     };
     const activo = { nueva: "fechas", editar: "fechas", fecha: "fechas", integrante: "integrantes" }[r] || r;
     const n = urgentes();
-    document.title = (n ? `(${n}) ` : "") + D.nombre;
+    document.title = (n ? `(${n}) ` : "") + D.nombre + (D.lema ? ` «${D.lema}»` : "");
     const link = (k, label) => `<a href="#/${k === "inicio" ? "" : k}" class="${activo === k ? "active" : ""}">${label}</a>`;
     const permiso = "Notification" in window && Notification.permission === "default" && !guardado.get("notif-no");
     $app.innerHTML = `<header class="topbar">
-        <a class="brand" href="#/"><span class="mono">${esc(monograma())}</span><span class="brand-txt"><small>Especialización · CUN</small>${esc(D.nombre)}</span></a>
+        <a class="brand" href="#/"><span class="mono">${esc(monograma())}</span><span class="brand-txt"><small>${esc(D.lema || "Especialización · CUN")}</small>${esc(D.nombre)}</span></a>
         <button class="menu-btn" type="button" aria-label="Menú" data-act="menu">☰</button>
         <nav class="nav">
           ${link("inicio", "Inicio" + (n ? ` <span class="badge">${n}</span>` : ""))}${link("calendario", "Calendario")}${link("fechas", "Fechas")}
@@ -558,7 +561,7 @@
           location.hash = "#/integrantes";
           break;
         case "nombre-grupo":
-          await op({ op: "nombre-grupo", nombre: datos.nombre }, "Nombre guardado.");
+          await op({ op: "nombre-grupo", nombre: datos.nombre, lema: datos.lema }, "Nombre guardado.");
           break;
         case "subir": {
           if (datos.modo === "link") {
