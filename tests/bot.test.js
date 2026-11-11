@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { ok, section, wait } = require('./harness.js');
 const E = require('../pronosticos/engine.js');
 const D = require('../pronosticos/data.js');
@@ -50,6 +52,24 @@ wait(async () => {
     const good = await buildForecast('col.1', event, null, { strict: true });
     ok(good.incomplete === false && good.fc.final && good.fc.model.ok, 'con la fuente respondiendo: pronóstico completo');
     global.fetch = realFetch;
+  }
+
+  section('Bot: un mensaje en varias partes no repite las ya entregadas');
+  {
+    const { makeMetaSender } = await import('../whatsapp-bot/src/whatsapp.js');
+    const realFetch = global.fetch;
+    const sentBodies = []; let failNext = 2; // falla el segundo envío
+    global.fetch = async (url, init) => { const body = JSON.parse(init.body).text.body; if (sentBodies.length + 1 === failNext) { failNext = -1; return { ok: false, status: 500, text: async () => 'error pasajero' }; } sentBodies.push(body); return { ok: true, status: 200, text: async () => '' }; };
+    const send = makeMetaSender({ token: 't', phoneNumberId: '1', to: '573001234567' });
+    const long = Array.from({ length: 3 }, (_, i) => `PARTE${i + 1} ` + 'x'.repeat(3000)).join('\n');
+    let err = null; try { await send(long); } catch (e) { err = e; }
+    ok(err && err.sentParts === 1 && sentBodies.length === 1 && sentBodies[0].startsWith('PARTE1'), 'falla la parte 2: el error dice que la parte 1 ya salió');
+    const total = await send(long, err.sentParts);
+    ok(total === 3 && sentBodies.length === 3 && sentBodies[1].startsWith('PARTE2') && sentBodies[2].startsWith('PARTE3'), 'al reintentar se envía desde la parte 2 (antes la parte 1 llegaba repetida en cada intento)');
+    global.fetch = realFetch;
+    const src = fs.readFileSync(path.join(__dirname, '..', 'whatsapp-bot', 'src', 'index.js'), 'utf8');
+    ok(/progress\.get\(id\)/.test(src) && /e\.sentParts/.test(src), 'el bot recuerda cuántas partes entregó');
+    ok(/minsUntil - TICK_MIN > 0/.test(src), 'y solo espera datos completos si habrá otra revisión antes del partido');
   }
 
   const none = formatMessage({ cfg, event, fc: E.forecast({ group: 'betplay', phase: 'regular', model: null, houses: [] }), context: [], notes: [] });

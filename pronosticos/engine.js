@@ -185,7 +185,7 @@
   // house: { name, src: 'U' (escrita por el usuario) | 'H' (hallada), odds: {home,draw,away,over25,under25}, at }
   function evalHouse(house) {
     const o = house.odds || {};
-    const out = { name: house.name, src: house.src, group: houseGroup(house.name), at: house.at || null, odds: o, m1x2: null, mOU: null, notes: [] };
+    const out = { name: house.name, src: house.src, group: houseGroup(house.name), at: house.at == null ? null : house.at, odds: o, m1x2: null, mOU: null, notes: [] };
     const t = [o.home, o.draw, o.away];
     if (t.some(v => v != null)) {
       if (!t.every(inRange)) out.notes.push('1X2 incompleto o fuera de rango (se necesitan las tres cuotas)');
@@ -443,7 +443,7 @@
     // Calidad de los datos (no es "confianza en el resultado")
     const poor = [], partial = [];
     // Sin cuotas: en una liga con el modelo probado es un dato incompleto; en las demás, un dato pobre
-    if (!hasX) (P && P.calibrated ? partial : poor).push('No hay cuotas para contrastar: el número sale solo del modelo de goles, que no conoce bajas ni rotaciones.');
+    if (!hasX) (P && P.calibrated ? partial : poor).push('No hay cuotas del 1X2 para contrastar: el número sale solo del modelo de goles, que no conoce bajas ni rotaciones.');
     const cup = input.phase === 'copa';
     const hasU = mkt.houses.some(h => h.src === 'U');
     if (!hasM && !cup) poor.push('Sin modelo de goles' + (gm.notes[0] ? ` (${String(gm.notes[0]).replace(/\.$/, '')})` : '') + ': el número es solo el mercado.');
@@ -476,7 +476,8 @@
     if (!fc || !fc.final) { res.blockers.push('No hay pronóstico.'); return res; }
     const mkt = fc.market;
     const now = o.now || Date.now();
-    const fresh = (e) => !e.at || ((now - e.at) <= LIMITS.userOddsMaxAgeH * 3600e3);
+    // Sin "at" (null/undefined) quien llama no lleva la hora; con "at", una hora desconocida (0) cuenta como vieja
+    const fresh = (e) => e.at == null || (isNum(e.at) && e.at > 0 && (now - e.at) <= LIMITS.userOddsMaxAgeH * 3600e3);
     const beforeKickoff = !o.kickoff || now < o.kickoff;
     const markets = [
       { key: 'home', label: 'Gana local', group: '1x2', xU: mkt.xU ? mkt.xU[0] : null, p: fc.final.home },
@@ -489,6 +490,8 @@
     if (!(fc.quality.level === 'Completa' || fc.quality.level === 'Parcial')) general.push('La calidad de los datos es pobre.');
     if (!beforeKickoff) general.push('El partido ya empezó.');
     if (fc.fit.residual > LIMITS.fitResidualBet) general.push('El 1X2 y el más/menos no cuadran con precisión.');
+    // Sin 1X2 de mercado no hay con qué comprobar que el más/menos esté bien copiado
+    if (!mkt.x) general.push('Escriba también las tres cuotas del 1X2: sin ellas no se puede comprobar el más/menos.');
 
     for (const e of mkt.houses.filter(h => h.src === 'U')) {
       for (const m of markets) {
@@ -507,7 +510,7 @@
         const why = general.slice();
         if (nU < 2) why.push('Se necesitan cuotas de dos casas independientes para comparar.');
         if (disagree) why.push('Sus dos casas difieren demasiado: revise las cuotas.');
-        if (!allFresh) why.push('Alguna de sus cuotas tiene más de 6 horas: actualícelas todas.');
+        if (!allFresh) why.push('Alguna de sus cuotas tiene más de 6 horas: vuelva a escribirlas todas, aunque no hayan cambiado.');
         if (refDisagree) why.push('Sus cuotas no coinciden con las de referencia del mercado: revise que sean de este partido y estén en el orden local / empate / visitante.');
         if (ev == null || ev < LIMITS.minEV) why.push('No paga lo suficiente por encima de su valor (se exige +3%).');
         if (evPrice != null && evPrice > LIMITS.maxEVPrice) why.push('Diferencia demasiado grande entre casas: casi seguro es un error al escribir la cuota.');

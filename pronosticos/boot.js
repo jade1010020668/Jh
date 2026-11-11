@@ -10,10 +10,14 @@
     box.hidden = false;
     box.textContent = 'La app no pudo iniciar en este navegador. Recargue la página; si sigue igual, ábrala en Chrome o Safari actualizados. Detalle técnico: ' + msg;
   }
+  // Solo cuentan los errores de los archivos de ESTE sitio: los de extensiones del navegador u otros orígenes no son de la app
+  function own(url) { return !url || String(url).indexOf(location.origin) === 0 || !/^[a-z][a-z0-9+.-]*:/i.test(String(url)); }
   window.addEventListener('error', function (e) {
     var t = e && e.target;
-    if (t && t.tagName === 'SCRIPT') show('no cargó el archivo ' + (t.getAttribute('src') || ''));
-    else show((e && e.message) || 'error desconocido');
+    if (t && t.tagName === 'SCRIPT') { if (own(t.src || t.getAttribute('src'))) show('no cargó el archivo ' + (t.getAttribute('src') || '')); return; }
+    if (t && t !== window && t.tagName) return;            // imágenes u otros recursos: no impiden el arranque
+    if (e && e.filename && !own(e.filename)) return;
+    show((e && e.message) || 'error desconocido');
   }, true);
   window.addEventListener('load', function () { setTimeout(function () { show('el programa no terminó de cargar'); }, 0); });
 })();

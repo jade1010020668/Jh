@@ -26,8 +26,9 @@ Repositorio de apps web estáticas publicadas en Netlify (cada cambio en `main` 
 - Sin cuotas, la Liga BetPlay queda en calidad "Parcial" (modelo probado); las demás ligas, "Pobre".
 
 ## Pendientes y riesgos
-- **Fusionar el PR a `main`** para que la dirección definitiva funcione: requiere el visto bueno explícito de Diego.
-- Los cuadrangulares de 2026 empiezan hacia el 20-nov: la búsqueda de la tabla regular se probó con las respuestas reales de 2025, no con las de 2026.
+- **Publicada el 11-nov-2026** en https://fabulous-unicorn-235c34.netlify.app/ (Diego dio el visto bueno; PR #2 fusionado). Publicar cambios nuevos sigue requiriendo su visto bueno.
+- **Revisión independiente con Opus** (dos revisores, tras la auditoría): 10 hallazgos más, corregidos con prueba. Los de más peso: corregir una sola cuota hacía pasar por recientes las demás; el seguimiento conservaba sin aviso una recomendación ya retirada; si la tabla general fallaba al inicio del torneo se tomaba la de otro torneo.
+- La fase final del Clausura 2026 empieza el 17-nov y es por eliminatorias a ida y vuelta; en esa fase la fuente no da tabla. La búsqueda de la tabla regular se probó con datos en vivo simulando esa respuesta vacía, no con partidos reales de la fase.
 - No hubo revisión cruzada con Codex (el plugin no está instalado en las sesiones en la nube).
 - Sin calibrar: el peso del modelo frente al mercado (no hay historial de cuotas) y todo lo de las ligas europeas.
 - ESPN bloquea navegadores automatizados ("HeadlessChrome"); los navegadores normales funcionan. Si la API cambia, la app avisa y no pronostica.

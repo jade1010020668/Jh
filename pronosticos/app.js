@@ -31,7 +31,7 @@ const RESULT_AFTER_MS = 110 * 60e3;  // se busca el marcador desde 110 min despu
 const state = {
   slug: '', fixtures: [], event: null, parts: null, input: null, fc: null, fcBase: null, bets: null,
   context: [], llm1x2: null, aiMarkdown: '',
-  oddsAt: { h1: null, h2: null },
+  oddsAt: { h1: {}, h2: {} },   // hora en que se escribió CADA cuota (por casa y campo)
   loadToken: 0, aiController: null, aiToken: 0
 };
 
@@ -192,15 +192,15 @@ els.league.addEventListener('change', loadFixturesUI);
 
 // ===== Partido =====
 function clearOdds() {
-  for (const h of ['h1', 'h2']) { for (const k of ODD_KEYS) { const i = oddInput(h, k); i.value = ''; i.classList.remove('bad'); } state.oddsAt[h] = null; }
+  for (const h of ['h1', 'h2']) { for (const k of ODD_KEYS) { const i = oddInput(h, k); i.value = ''; i.classList.remove('bad'); } state.oddsAt[h] = {}; }
 }
 // Las cuotas escritas se guardan con el pronóstico: al volver al partido reaparecen con su hora.
 function oddsSnapshot() {
   const out = {}; let any = false;
   for (const [h, sel] of [['h1', els.h1Name], ['h2', els.h2Name]]) {
-    const x = { name: sel.value, at: state.oddsAt[h] || null }; let has = false;
-    for (const k of ODD_KEYS) { const v = parseOdd(oddInput(h, k).value); if (v) { x[k] = v; has = true; } }
-    if (has) { out[h] = x; any = true; }
+    const x = { name: sel.value, ats: {} }; let has = false;
+    for (const k of ODD_KEYS) { const v = parseOdd(oddInput(h, k).value); if (v) { x[k] = v; x.ats[k] = state.oddsAt[h][k] || 0; has = true; } }
+    if (has) { x.at = houseAt(h); out[h] = x; any = true; }
   }
   return any ? out : null;
 }
@@ -213,8 +213,8 @@ function restoreOdds(ev) {
   for (const [h, sel] of [['h1', els.h1Name], ['h2', els.h2Name]]) {
     const x = o[h]; if (!x) continue;
     if (HOUSES.includes(x.name) || x.name === OTHER_A || x.name === OTHER_B) sel.value = x.name;
-    for (const k of ODD_KEYS) if (x[k]) oddInput(h, k).value = String(x[k]);
-    state.oddsAt[h] = x.at || null;
+    // Cada cuota vuelve con SU hora; si no se conoce, cuenta como vieja (0), nunca como recién escrita
+    for (const k of ODD_KEYS) if (x[k]) { oddInput(h, k).value = String(x[k]); state.oddsAt[h][k] = (x.ats && x.ats[k]) || x.at || 0; }
   }
 }
 async function selectEvent(ev) {
@@ -247,11 +247,16 @@ async function selectEvent(ev) {
 }
 
 function readOdd(input) { return parseOdd(input.value); }
+// Hora de la cuota MÁS VIEJA de una casa: corregir un solo campo no rejuvenece los demás
+function houseAt(h) {
+  const ats = ODD_KEYS.filter(k => readOdd(oddInput(h, k)) != null).map(k => state.oddsAt[h][k] || 0);
+  return ats.length ? Math.min.apply(null, ats) : 0;
+}
 function userHouses() {
   const out = [];
   for (const [h, sel] of [['h1', els.h1Name], ['h2', els.h2Name]]) {
     const odds = { home: readOdd(oddInput(h, 'home')), draw: readOdd(oddInput(h, 'draw')), away: readOdd(oddInput(h, 'away')), over25: readOdd(oddInput(h, 'over')), under25: readOdd(oddInput(h, 'under')) };
-    if (Object.values(odds).some(v => v != null)) out.push({ name: sel.value, src: 'U', odds, at: state.oddsAt[h] || Date.now() });
+    if (Object.values(odds).some(v => v != null)) out.push({ name: sel.value, src: 'U', odds, at: houseAt(h) });
   }
   return out;
 }
@@ -285,7 +290,7 @@ let recomputeTimer = null;
 function scheduleRecompute() { clearTimeout(recomputeTimer); recomputeTimer = setTimeout(recompute, 200); }
 for (const h of ['h1', 'h2']) for (const k of ODD_KEYS) {
   const i = oddInput(h, k);
-  i.addEventListener('input', () => { state.oddsAt[h] = Date.now(); i.classList.toggle('bad', i.value.trim() !== '' && parseOdd(i.value) == null); scheduleRecompute(); });
+  i.addEventListener('input', () => { state.oddsAt[h][k] = Date.now(); i.classList.toggle('bad', i.value.trim() !== '' && parseOdd(i.value) == null); scheduleRecompute(); });
 }
 for (const e of [els.h1Name, els.h2Name, els.bankroll]) e.addEventListener('change', () => { saveBank(); scheduleRecompute(); });
 els.bankroll.addEventListener('input', () => { paintBank(); scheduleRecompute(); });
@@ -774,10 +779,12 @@ function renderContext(parsed, nSeen, complete) {
     }
     nb.appendChild(ul);
     if (!nSeen) nb.appendChild(el('p', null, 'No se pudo comprobar ninguna fuente en esta consulta, así que nada se usó para ajustar el pronóstico.'));
+    // Novedades que por su tipo sí pesan (una baja de un jugador no clave se confirma, pero no entra al cálculo)
+    const counted = state.context.filter(c => c.used && (c.type !== 'baja' || c.role !== 'otro'));
     if (moved) nb.appendChild(el('p', null, `Con estas novedades el pronóstico pasó de ${tri(base.final)} a ${tri(fc.final)} (local / empate / visitante).`));
-    else if (state.context.some(c => c.used)) nb.appendChild(el('p', null, fc && fc.model && fc.model.ok
-      ? 'En este partido el número sale de las cuotas, y las casas ya suelen tener en cuenta estas noticias: por eso el pronóstico no se mueve.'
-      : 'Para este partido no hay modelo de goles que ajustar: el número sale solo de las cuotas, que ya suelen tener en cuenta estas noticias.'));
+    else if (counted.length && fc && fc.final) nb.appendChild(el('p', null, fc.market && fc.market.x
+      ? 'En este partido el número sale sobre todo de las cuotas, que ya suelen tener en cuenta estas noticias: por eso el pronóstico no se mueve.'
+      : 'Estas novedades no alcanzan a mover el pronóstico de este partido.'));
   }
   nb.appendChild(el('p', 'small muted', 'Cada novedad usada mueve los goles esperados del modelo un 4–5%, con un tope total del 10%. Se comprueba que la página citada salió en la búsqueda y que no es vieja; no que diga exactamente lo que la IA resume: abra la fuente.'));
   box.appendChild(nb);
@@ -801,7 +808,8 @@ function saveTrack() {
   const prev = idx >= 0 ? list[idx] : null;
   const odds = oddsSnapshot();
   const newRec = rec && rec.stake > 0 ? { house: rec.house, key: rec.key, label: rec.label, odds: rec.odds, stake: rec.stake, ev: rec.ev, at: now } : null;
-  // Lo recomendado no se borra por reabrir el partido ni porque las cuotas envejezcan: solo si usted cambia las cuotas
+  // Lo recomendado no se borra por reabrir el partido ni porque las cuotas envejezcan (así se puede marcar una apuesta
+  // ya hecha): solo si usted cambia las cuotas. Si la app ya no lo recomienda, queda marcado como retirado.
   const keepRec = !!prev && !!prev.rec && (!!prev.bet || oddsValues(prev.odds) === oddsValues(odds));
   const record = {
     id, slug: state.slug, eventId: ev.id, league: LEAGUES[state.slug].name, home: ev.home.name, away: ev.away.name, kickoff: ev.date,
@@ -810,7 +818,7 @@ function saveTrack() {
     market: fc.market.x || null, model: fc.model.ok ? fc.model.probs : null, llm: state.llm1x2 || (prev && prev.llm) || null,
     quality: fc.quality.level, top: `${fc.topScores[0].home}-${fc.topScores[0].away}`,
     odds,
-    rec: newRec ? (prev && prev.rec && prev.rec.key === newRec.key && prev.rec.house === newRec.house && prev.rec.odds === newRec.odds ? Object.assign(newRec, { at: prev.rec.at || now }) : newRec) : (keepRec ? prev.rec : null),
+    rec: newRec ? (prev && prev.rec && prev.rec.key === newRec.key && prev.rec.house === newRec.house && prev.rec.odds === newRec.odds ? Object.assign(newRec, { at: prev.rec.at || now }) : newRec) : (keepRec ? Object.assign({}, prev.rec, { withdrawn: true }) : null),
     bet: prev ? prev.bet || null : null, result: prev ? prev.result || null : null
   };
   if (idx >= 0) list[idx] = record; else list.unshift(record);
@@ -895,7 +903,7 @@ function renderTrack() {
       actions.appendChild(a); actions.appendChild(el('span', null, '–')); actions.appendChild(b); actions.appendChild(ok);
     } else actions.appendChild(el('span', 'tag mid', 'por jugar'));
     if (r.rec || r.bet) {
-      const label = r.bet ? `✔ Aposté ${cop(r.bet.stake)}` : `Marcar que aposté: ${r.rec.label} en ${r.rec.house} a ${Number(r.rec.odds).toFixed(2)}` + (r.rec.at ? ` (recomendado a las ${fmtHour(r.rec.at)})` : '');
+      const label = r.bet ? `✔ Aposté ${cop(r.bet.stake)}` : `Marcar que aposté: ${r.rec.label} en ${r.rec.house} a ${Number(r.rec.odds).toFixed(2)}` + (r.rec.at ? ` (recomendado a las ${fmtHour(r.rec.at)}${r.rec.withdrawn ? '; ya no se recomienda' : ''})` : (r.rec.withdrawn ? ' (ya no se recomienda)' : ''));
       const betBtn = el('button', 'icon-btn', label);
       betBtn.title = r.bet ? 'Toque para desmarcar' : 'Toque solo si de verdad hizo esta apuesta';
       betBtn.addEventListener('click', () => updateRecord(r.id, x => { x.bet = x.bet ? null : (x.rec ? { house: x.rec.house, key: x.rec.key, odds: x.rec.odds, stake: x.rec.stake } : null); }));
@@ -963,3 +971,4 @@ populateSelectors();
 refreshTrackButton();
 loadFixturesUI();
 window.__appReady = true; // boot.js ya no debe mostrar el aviso de "no pudo iniciar"
+{ const be = $('boot-error'); if (be) be.hidden = true; } // y si un error ajeno lo mostró antes, se quita

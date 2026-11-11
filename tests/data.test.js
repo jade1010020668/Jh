@@ -214,3 +214,35 @@ section('Fuentes de la IA: dirección exacta y fecha de la página');
   ok(!v[1].used && v[1].stale && v[1].sourceSeen, 'noticia de 2019: no se usa aunque la página haya salido en la búsqueda');
   ok(v[2].used && v[3].used, 'sin fecha conocida se mantiene la regla anterior');
 }
+
+// ====== Casos añadidos tras la revisión independiente (Opus) ======
+section('Fase: variantes de "semifinal"');
+{
+  for (const e of [{ note: 'Semi-final - Leg 1' }, { note: 'Semi Final' }, { seasonSlug: 'apertura---semi-finals' }]) ok(D.detectPhase(cfg, e, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'no se toma por la final: ' + JSON.stringify(e));
+}
+
+section('Carga del partido: cuándo se busca la tabla hacia atrás y cuándo no');
+require('./harness.js').wait(async () => {
+  const realFetch = global.fetch;
+  const reply = (j) => ({ ok: !!j, status: j ? 200 : 503, json: async () => j });
+  const seen = [];
+  const early = JSON.parse(JSON.stringify(fx('core-col1-2026-5.json')));
+  // Clausura recién empezado: todos llevan 5 partidos
+  for (const e of early.standings) for (const r of e.records) for (const st of r.stats) if (st.name === 'gamesPlayed') st.value = 5;
+  try {
+    // 1) Fase regular y la tabla general falla: NO se debe tomar la tabla de otro torneo
+    global.fetch = async (url) => { const u = String(url); seen.push(u); return reply(u.includes('/standings') && !u.includes('/seasons/') ? null : u.includes('/types/5/') ? early : u.includes('/types/1/') ? fx('core-col1-2026-1.json') : null); };
+    const reg = await D.loadMatch('col.1', cfg, Object.assign({}, ev, { seasonSlug: 'clausura', seasonYear: 2026 }));
+    ok(reg.table === null && !seen.some(u => u.includes('/types/1/')), 'tabla general caída en plena fase regular: no se busca hacia atrás (antes se tomaba la del Apertura)');
+    ok(D.buildInput(reg).model === null, 'y sin tabla no hay modelo: la app lo dice en vez de usar datos de otro torneo');
+    // 2) Final del Apertura y la tabla general ya es la del Clausura sin jugar (todos con 0 partidos)
+    const zero = JSON.parse(JSON.stringify(fx('standings-col1.json')));
+    for (const ch of zero.children) for (const e of ch.standings.entries) for (const st of e.stats) if (['gamesPlayed', 'wins', 'ties', 'losses', 'pointsFor', 'pointsAgainst', 'points'].includes(st.name)) st.value = 0;
+    seen.length = 0;
+    global.fetch = async (url) => { const u = String(url); seen.push(u); return reply(u.includes('/standings') && !u.includes('/seasons/') ? zero : u.includes('/types/1/') ? fx('core-col1-2026-1.json') : null); };
+    const fin = await D.loadMatch('col.1', cfg, Object.assign({}, ev, { seasonSlug: 'apertura---finals', series: 'Apertura - Finals', seasonYear: 2026, leg: 2 }));
+    ok(fin.table && fin.table.type === 1 && fin.table.fromCore === true && fin.table.rows.find(r => r.id === ev.home.id).pj === 19, 'final del Apertura con la tabla del Clausura en ceros: se usa la tabla del Apertura (antes el modelo salía con 0 partidos)');
+    const finIn = D.buildInput(fin);
+    ok(finIn.model && finIn.phase === 'final' && finIn.model.home.pj === 19, 'el partido queda como final, con los datos de su fase regular');
+  } finally { global.fetch = realFetch; }
+});

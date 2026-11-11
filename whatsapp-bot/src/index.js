@@ -12,6 +12,8 @@ const LEAD = Math.max(5, parseInt(process.env.LEAD_MINUTES || '60', 10) || 60);
 const CRON = process.env.CRON_SCHEDULE || '*/5 * * * *';
 const PROVIDER = (process.env.WHATSAPP_PROVIDER || 'meta').toLowerCase();
 const STRICT_UNTIL_MIN = 15; // hasta 15 min antes del partido se espera a tener los datos completos
+// Cada cuántos minutos revisa el cron (para saber si habrá OTRA revisión antes del partido). Si no se reconoce, se supone una hora.
+const TICK_MIN = (() => { const f = CRON.trim().split(/\s+/); const m = /^\*\/(\d+)$/.exec(f[0] || ''); return f[0] === '*' ? 1 : m ? Math.max(1, parseInt(m[1], 10)) : 60; })();
 // La IA es opcional: sin ANTHROPIC_API_KEY el bot envía el pronóstico estadístico, que no cuesta nada.
 const ai = process.env.ANTHROPIC_API_KEY ? { apiKey: process.env.ANTHROPIC_API_KEY, model: process.env.ANTHROPIC_MODEL || 'claude-opus-5-5' } : null;
 
@@ -37,7 +39,8 @@ const SENT_URL = new URL('../sent.json', import.meta.url);
 const loadSent = () => { try { return new Set(JSON.parse(fs.readFileSync(SENT_URL, 'utf8'))); } catch { return new Set(); } };
 const saveSent = (set) => fs.writeFileSync(SENT_URL, JSON.stringify([...set].slice(-500), null, 2));
 
-const ready = new Map(); // id → pronóstico ya armado (si falla el envío, no se vuelve a pagar la consulta de IA)
+const ready = new Map();    // id → pronóstico ya armado (si falla el envío, no se vuelve a pagar la consulta de IA)
+const progress = new Map(); // id → partes del mensaje ya entregadas (si falla la parte 2, no se repite la 1)
 
 // strict: si la fuente no entregó todos los datos, no se envía un mensaje a medias; se reintenta después.
 async function processMatch(slug, event, strict) {
@@ -45,8 +48,10 @@ async function processMatch(slug, event, strict) {
   console.log(`⏳ ${event.home.name} vs ${event.away.name} (${event.date})`);
   let result = ready.get(id);
   if (!result) { result = await buildForecast(slug, event, ai, { strict }); ready.set(id, result); }
-  const parts = await send(formatMessage(result));
-  ready.delete(id);
+  let parts;
+  try { parts = await send(formatMessage(result), progress.get(id) || 0); }
+  catch (e) { if (e && e.sentParts) progress.set(id, e.sentParts); throw e; }
+  ready.delete(id); progress.delete(id);
   // El proveedor solo confirma que RECIBIÓ el mensaje. Si usted no le ha escrito al número en las últimas 24 h,
   // WhatsApp puede descartarlo después sin avisar (ver README).
   console.log(`✅ Aceptado por ${PROVIDER} (${parts} mensaje/s; la entrega final no se puede confirmar desde aquí). Calidad de los datos: ${result.fc.quality.level}.`);
@@ -72,7 +77,10 @@ async function tick() {
         if (sent.has(id) || done.has(id) || minsUntil <= 0 || minsUntil > LEAD) continue;
         const tries = attempts.get(id) || 0;
         // Se reintenta en cada revisión hasta el inicio del partido (un fallo pasajero no debe dejarlo sin pronóstico)
-        try { await processMatch(slug, ev, minsUntil > STRICT_UNTIL_MIN); }
+        // Estricto (no enviar con datos a medias) solo si queda otra revisión antes del último cuarto de hora;
+        // si no, este es el último intento útil y se envía lo que haya.
+        const strict = minsUntil > STRICT_UNTIL_MIN && minsUntil - TICK_MIN > 0;
+        try { await processMatch(slug, ev, strict); }
         catch (e) { attempts.set(id, tries + 1); console.error(`❌ ${ev.home.name} vs ${ev.away.name} (intento ${tries + 1}; se reintenta hasta el inicio): ${e.message}`); continue; }
         done.add(id); attempts.delete(id); sent.add(id);
         try { saveSent(sent); } catch (e) { console.error(`⚠️ Enviado, pero no se pudo guardar sent.json (${e.message}). Si reinicia el bot antes del partido, se repetirá.`); }

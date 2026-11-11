@@ -243,3 +243,17 @@ section('Reglas añadidas tras la auditoría');
   const conv = E.evalHouse({ name: 'DK', src: 'H', odds: { home: 2.0, draw: 3.4, away: 3.9, over25: null, under25: null, fairOver: 0.66, overLine: 3.5 } });
   ok(conv.mOU && Math.abs(conv.mOU.probs[0] - 0.66) < 1e-12 && conv.mOU.overround === null, 'una casa con "más de 2,5" ya convertido entra al mercado de goles');
 }
+
+section('Reglas añadidas tras la revisión independiente');
+{
+  // Solo cuotas de más/menos (sin 1X2): no hay con qué comprobar que estén bien copiadas → no se recomienda
+  const ouOnly = exampleInput(); ouOnly.houses = [{ name: 'A', src: 'U', odds: { over25: 2.18, under25: 1.76 } }, { name: 'B', src: 'U', odds: { over25: 1.90, under25: 1.90 } }];
+  const fo = E.forecast(ouOnly); const bo = E.evaluateBets(fo, { bankroll: 2000000 });
+  ok(!fo.market.x && bo.rows.length > 0 && !bo.recommended, 'con solo cuotas de más/menos no hay recomendación');
+  ok(bo.rows.every(r => r.why.some(w => /tres cuotas del 1X2/.test(w))), 'y se pide escribir también el 1X2');
+  ok(fo.quality.reasons.some(r => /No hay cuotas del 1X2 para contrastar/.test(r)), 'el motivo dice que falta el 1X2 (no que "no hay cuotas")');
+  // Hora desconocida (0) no es "recién escrita"
+  const unk = exampleInput(); unk.houses.forEach(h => { h.at = 0; });
+  ok(!E.evaluateBets(E.forecast(unk), { bankroll: 2000000, now: 1e12 }).recommended, 'cuotas con hora desconocida cuentan como viejas');
+  ok(!!E.evaluateBets(E.forecast(exampleInput()), { bankroll: 2000000, now: 1e12 }).recommended, 'sin campo de hora (quien llama no la lleva) el motor no la exige');
+}
