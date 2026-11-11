@@ -6,14 +6,17 @@
    filtro de "deportes") bloquean ese dominio y la app quedaría sin datos.
    Esta función es el plan B: la app la usa SOLO si la consulta directa falla.
 
-   GET /api/espn?u=<URL de ESPN>   → devuelve el mismo JSON
+   GET /api/datos?u=<URL de la consulta, en base64url>   → devuelve el mismo JSON
+
+   La dirección viaja codificada y la ruta no nombra a la fuente: así un filtro
+   que bloquee por palabras tampoco corta el plan B.
 
    Solo acepta las cuatro consultas de fútbol que usa la app; cualquier otra
    dirección se rechaza, así que no sirve como proxy abierto. No recibe ni
    guarda ningún dato del usuario.
    ========================================================================== */
 
-export const config = { path: "/api/espn" };
+export const config = { path: "/api/datos" };
 
 const LIGA = "[a-z]{2,12}\\.[a-z0-9_.]{1,24}";
 const PERMITIDAS = [
@@ -29,7 +32,9 @@ const json = (obj, status, cache) => new Response(JSON.stringify(obj), {
 
 export default async (req) => {
   if (req.method !== "GET") return json({ error: "Solo GET." }, 405);
-  const u = new URL(req.url).searchParams.get("u") || "";
+  const raw = new URL(req.url).searchParams.get("u") || "";
+  let u = "";
+  try { if (/^[A-Za-z0-9_-]{1,600}$/.test(raw)) u = Buffer.from(raw, "base64url").toString("utf8"); } catch { u = ""; }
   if (!PERMITIDAS.some((r) => r.test(u))) return json({ error: "Consulta no permitida." }, 400);
   try {
     const r = await fetch(u, {

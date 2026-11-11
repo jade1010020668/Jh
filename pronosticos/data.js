@@ -371,13 +371,15 @@
   }
   // Plan B: algunas redes (oficinas, colegios) bloquean el dominio de la fuente. Si la consulta directa no llega,
   // se repite por una función del propio sitio (netlify/functions/espn.mjs), que solo acepta estas consultas.
-  const net = { proxy: (typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) ? '/api/espn?u=' : null, viaProxy: false };
+  // La dirección va en base64url: ni la ruta ni la consulta nombran a la fuente.
+  const net = { proxy: (typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) ? '/api/datos?u=' : null, viaProxy: false };
+  const b64url = (t) => (typeof btoa === 'function' ? btoa(t) : Buffer.from(t, 'utf8').toString('base64')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   async function fetchJson(url, timeoutMs) {
     if (!net.viaProxy) {
       try { return await fetchDirect(url, timeoutMs); }
       catch (e) { if (!net.proxy || e.status) throw e; } // una respuesta HTTP de la fuente (404…) es un dato, no un bloqueo
     }
-    const j = await fetchDirect(net.proxy + encodeURIComponent(url), timeoutMs);
+    const j = await fetchDirect(net.proxy + b64url(url), timeoutMs);
     net.viaProxy = true; // lo que queda de la sesión va directo por el plan B, sin esperar otro fallo
     return j;
   }
@@ -489,7 +491,7 @@ FORMATO DE SALIDA, en este orden exacto:
   const api = {
     urls, ouFromLine, oddsFromScoreboard, oddsFromPickcenter, oddsFromSummaryOdds, parseEvent, parseScoreboard, parseStandings, parseCore, tableChecks,
     parseSummary, detectPhase, prevTournament, prevCandidates, prevValid, buildInput, normUrl, extractContext, verifyContext,
-    net, fetchJson, loadFixtures, loadMatch, loadResult, CONTEXT_SYSTEM, contextUserPrompt
+    net, b64url, fetchJson, loadFixtures, loadMatch, loadResult, CONTEXT_SYSTEM, contextUserPrompt
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Data = api;

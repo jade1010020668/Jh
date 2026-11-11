@@ -20,7 +20,7 @@ Las cuotas se pueden escribir con coma o con punto (`2,35` o `2.35`) y la banca 
 
 | Pieza | Qué es |
 |---|---|
-| **Datos** | Calendario, tabla con desglose local/visitante, torneo anterior, últimos partidos y cuotas de referencia (DraftKings o Bet 365, según la liga), leídos en vivo de la API pública de ESPN (no oficial). No hay listas de equipos que mantener. En cuadrangulares y finales se usa la tabla de la **fase regular**, no la del grupo de cuatro. Si la red del usuario bloquea esa fuente, la consulta se repite por una función del propio sitio (`/api/espn`). |
+| **Datos** | Calendario, tabla con desglose local/visitante, torneo anterior, últimos partidos y cuotas de referencia (DraftKings o Bet 365, según la liga), leídos en vivo de la API pública de ESPN (no oficial). No hay listas de equipos que mantener. En cuadrangulares y finales se usa la tabla de la **fase regular**, no la del grupo de cuatro. Si la red del usuario bloquea esa fuente, la consulta se repite por una función del propio sitio (`/api/datos`). |
 | **Mercado** | Las cuotas sin el margen de la casa (método de Shin en el 1X2; aditivo en el más/menos). Varias casas se combinan por media geométrica; las que comparten proveedor cuentan una vez. |
 | **Modelo de goles** | Poisson con corrección de Dixon-Coles. La fuerza de ataque y defensa de cada equipo se estima con sus goles, **encogida hacia el promedio** según el tamaño de la muestra, sumando el torneo anterior y un sobrepeso de los últimos 5 partidos de liga. |
 | **Pronóstico final** | `mercado^(1−w) · modelo^w`, con `w` máximo de 0,20 en el 1X2. Si modelo y mercado difieren más de 5 puntos, `w` baja a la mitad; más de 10, `w = 0` (manda el mercado). En goles totales (Liga BetPlay) el modelo no pesa: manda el mercado. |
