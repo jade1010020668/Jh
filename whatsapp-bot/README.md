@@ -1,98 +1,75 @@
 # 🤖 Bot de pronósticos a WhatsApp
 
-Envía a tu WhatsApp el pronóstico de cada partido **1 hora antes del pitazo inicial**, de forma automática. Usa la **API de Claude** (con búsqueda web para datos reales) para el análisis y **Twilio** para el envío.
+Envía a tu WhatsApp el pronóstico de cada partido **antes del pitazo inicial** (60 minutos por defecto). Usa el **mismo motor estadístico que la app web** (`../pronosticos/engine.js` y `data.js`): lee solo el calendario, la tabla, los resultados y las cuotas de referencia, calcula las probabilidades y redacta el mensaje.
+
+- **No hay que escribir la agenda a mano:** el bot consulta el calendario de las ligas que elijas.
+- **No necesita IA ni API key.** La IA es un extra opcional que añade bajas y rotaciones confirmadas.
+- El bot **no recomienda apuestas**: no conoce las cuotas de tu casa. Para eso está la app web.
+
+Ejemplo de mensaje:
 
 ```
-┌────────────┐   cron cada 5 min   ┌─────────────┐   texto   ┌────────┐   WhatsApp
-│ fixtures   │ ──────────────────► │  Claude API │ ────────► │ Twilio │ ──────────► 📱 tu celular
-│ .json      │   ¿falta 1h?        │ + web_search│           │        │
-└────────────┘                     └─────────────┘           └────────┘
+⚽ *Llaneros FC vs Boyacá Chicó FC*
+Liga BetPlay Dimayor (Colombia) · jue, 12 de nov, 07:00 p. m.
+
+📊 Llaneros FC 58% · Empate 25% · Boyacá Chicó FC 17%
+🥅 Más de 2,5 goles: 46% · Ambos anotan: 47%
+🎯 Marcador más probable: 1-0 (1 de cada 8)
+🔎 mercado 57%/25%/18% · modelo 65%/23%/11%
+📎 Calidad de los datos: Parcial
+
+⚠️ Estimación estadística, no una garantía…
 ```
 
-## ⚠️ Lo que necesitas (requisitos reales)
+## Lo que necesitas
 
-1. **Node.js 18+** en un equipo o servidor **encendido 24/7** (tu PC, un Raspberry Pi, o un hosting como Railway/Render/Fly.io). Si el equipo se apaga, no se envía nada.
-2. Una **API key de Anthropic** con saldo → [console.anthropic.com](https://console.anthropic.com/settings/keys).
-3. Un proveedor de envío de WhatsApp (elige uno):
-   - **Meta WhatsApp Cloud API** (recomendado, gratis) → [developers.facebook.com](https://developers.facebook.com).
-   - **Twilio** (sandbox gratis) → [console.twilio.com](https://console.twilio.com).
+1. **Node.js 20+** en un equipo **encendido 24/7** (tu PC, un Raspberry Pi o un hosting). Si se apaga, no se envía nada.
+2. **El repositorio completo** (el bot usa archivos de la carpeta `pronosticos/`).
+3. Un proveedor de envío de WhatsApp: **Meta WhatsApp Cloud API** (recomendado, gratis) o **Twilio** (sandbox gratis).
 
-> **Importante sobre WhatsApp (regla de Meta, no del código):** un número de empresa **no puede escribirte primero** con texto libre. Solo puede fuera de eso mediante **plantillas aprobadas**. En pruebas basta con que **tú le escribas primero** al número (abres una ventana de 24 h) o registres tu número como destinatario de prueba. Esto aplica tanto a Meta como a Twilio.
+> **Regla de WhatsApp (de Meta, no del código):** un número de empresa no puede escribirte primero con texto libre. En pruebas basta con que **tú le escribas primero** al número (abre una ventana de 24 h). Para envíos permanentes sin esa ventana hace falta una **plantilla de mensaje aprobada** por Meta. Si el bot falla por esto, el error lo dice con claridad.
 
-## 🟢 Ruta recomendada: Meta WhatsApp Cloud API (gratis)
-
-1. Entra a [developers.facebook.com](https://developers.facebook.com) → **My Apps → Create App → Business**.
-2. Agrega el producto **WhatsApp** a la app. Meta te da gratis:
-   - un **número de prueba** (emisor),
-   - un **Phone number ID** → ponlo en `META_PHONE_NUMBER_ID`,
-   - un **token temporal** (24 h) → ponlo en `META_ACCESS_TOKEN` (para dejarlo fijo, genera un *System User token* permanente en Business Settings).
-3. En la sección **API Setup**, agrega tu número (`+57XXXXXXXXXX`) como **destinatario de prueba** y verifícalo con el código que te llega por WhatsApp.
-4. En `.env`: `WHATSAPP_PROVIDER=meta`, `WHATSAPP_TO=57XXXXXXXXXX`.
-5. Prueba: `npm run test-now -- colombia`. Si tu número está fuera de la ventana de 24 h, escríbele primero al número de prueba desde tu WhatsApp y reintenta.
-
-## 🚀 Instalación
+## Instalación
 
 ```bash
-cd whatsapp-bot
+git clone <este repositorio> && cd Jh/whatsapp-bot
 npm install
-cp .env.example .env
-# edita .env con tus llaves
+cp .env.example .env    # y complétalo
 ```
 
-### Opción B: sandbox de Twilio (alternativa)
+### Opción A: Meta WhatsApp Cloud API
+1. En [developers.facebook.com](https://developers.facebook.com): **My Apps → Create App → Business** y añade el producto **WhatsApp**.
+2. Copia el **Phone number ID** a `META_PHONE_NUMBER_ID` y el **token** a `META_ACCESS_TOKEN` (el temporal dura 24 h; para dejarlo fijo crea un token de *System User*).
+3. En **API Setup**, agrega tu número como destinatario de prueba y verifícalo.
+4. En `.env`: `WHATSAPP_PROVIDER=meta` y `WHATSAPP_TO=57XXXXXXXXXX` (tu número, solo dígitos).
+
+### Opción B: sandbox de Twilio
 1. En `.env`: `WHATSAPP_PROVIDER=twilio`.
-2. En Twilio Console → **Messaging → Try it out → Send a WhatsApp message**.
-3. Verás un número (normalmente `+1 415 523 8886`) y un código tipo `join <palabra>`.
-4. Desde tu WhatsApp (`+57 XXX XXX XXXX`), envía ese `join <palabra>` a ese número.
-5. Pon ese número en `TWILIO_WHATSAPP_FROM`. `WHATSAPP_TO` puede ir como `57XXXXXXXXXX`.
+2. En Twilio Console → **Messaging → Try it out → Send a WhatsApp message**: envía desde tu WhatsApp el `join <palabra>` al número que te muestran.
+3. Pon ese número en `TWILIO_WHATSAPP_FROM`.
 
-## ▶️ Uso
+## Uso
 
-**Probar ahora mismo (envío inmediato de un partido):**
 ```bash
-npm run test-now -- colombia     # busca "colombia" en fixtures.json y envía ya
+npm run test-now              # envía YA el pronóstico del próximo partido (prueba)
+npm run test-now -- nacional  # ...del próximo partido de un equipo
+npm start                     # queda corriendo y envía antes de cada partido
 ```
 
-**Dejarlo corriendo (envía solo, 1h antes de cada partido):**
-```bash
-npm start
-```
+Para mantenerlo vivo: `npm i -g pm2 && pm2 start src/index.js --name pronosticos-bot && pm2 save`.
 
-Mantenlo vivo con un gestor de procesos:
-```bash
-npm i -g pm2
-pm2 start src/index.js --name mundial-bot
-pm2 save
-```
-
-## 🗓️ Agenda de partidos
-
-Edita **`fixtures.json`**. Cada partido:
-```json
-{
-  "league": "Mundial 2026 · Octavos",
-  "home": "Colombia",
-  "away": "Ghana",
-  "kickoff": "2026-07-03T21:30:00-05:00"
-}
-```
-`kickoff` en formato ISO 8601 **con tu zona horaria** (`-05:00` para Colombia). El bot enviará `LEAD_MINUTES` (60 por defecto) antes de esa hora. Los partidos ya enviados se registran en `sent.json` para no repetir.
-
-## ⚙️ Variables (.env)
+## Variables (`.env`)
 
 | Variable | Descripción |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Tu API key de Anthropic |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5` (rec.), `claude-opus-4-8` o `claude-haiku-4-5-20251001` |
+|---|---|
+| `LEAGUES` | Ligas a seguir, separadas por coma (`col.1` por defecto) |
 | `WHATSAPP_PROVIDER` | `meta` (recomendado) o `twilio` |
-| `WHATSAPP_TO` | Tu número, solo dígitos con país (`57XXXXXXXXXX`) |
-| `META_ACCESS_TOKEN` / `META_PHONE_NUMBER_ID` | Credenciales de Meta Cloud API (si provider=meta) |
-| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | Credenciales de Twilio (si provider=twilio) |
-| `LEAD_MINUTES` | Minutos antes del partido para enviar (60) |
-| `CRON_SCHEDULE` | Frecuencia de revisión (`*/5 * * * *`) |
+| `WHATSAPP_TO` | Tu número, solo dígitos con país |
+| `META_ACCESS_TOKEN`, `META_PHONE_NUMBER_ID` | Credenciales de Meta |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | Credenciales de Twilio |
+| `LEAD_MINUTES` | Minutos antes del partido (60) |
+| `CRON_SCHEDULE` | Cada cuánto revisa el calendario (`*/5 * * * *`) |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | **Opcional.** Contexto con IA (bajas y rotaciones con fuente) |
 
-## 💸 Costo aproximado
-Cada pronóstico ≈ **US$0.02–0.10** (tokens + búsquedas web) con Sonnet 5. Ponle un límite de gasto a tu key en la consola de Anthropic.
-
-## ⚠️ Aviso
-Los pronósticos son análisis con IA a partir de datos reales, **no garantías**. Apuesta solo lo que puedas permitirte perder.
+## Aviso
+Es una estimación estadística, **no una garantía**. No apuestes más de lo que puedas perder.

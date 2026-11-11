@@ -1,60 +1,96 @@
-// Genera el pronóstico de un partido usando la API de Claude con búsqueda web.
-import Anthropic from '@anthropic-ai/sdk';
+// Arma el pronóstico de un partido con el MISMO motor que la app web (pronosticos/engine.js y data.js),
+// y redacta el mensaje de WhatsApp. La IA es opcional y solo aporta contexto con fuente comprobable.
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const Engine = require('../../pronosticos/engine.js');
+const Data = require('../../pronosticos/data.js');
+const { LEAGUES } = require('../../pronosticos/leagues.js');
 
-// Formato COMPACTO pensado para WhatsApp (cabe en 1-2 mensajes).
-const SYSTEM = `Eres un analista deportivo profesional de fútbol. Generas un pronóstico BREVE para WhatsApp basado en datos REALES obtenidos con la búsqueda web.
+export { Data, Engine, LEAGUES };
 
-REGLAS:
-- Usa la herramienta de búsqueda web para datos reales (forma reciente, lesiones, H2H, cuotas). NUNCA inventes cifras.
-- Si un dato no está disponible, dilo. No prometas certeza del 99% ni 100%.
-- Responde en español, compacto, con emojis, SIN Markdown de encabezados (WhatsApp no los renderiza). Usa *negrita* de WhatsApp (un asterisco) con moderación.
+const TZ = process.env.TIMEZONE || 'America/Bogota';
+const pct = (x) => Math.round(x * 100) + '%';
 
-FORMATO EXACTO (máx. ~1200 caracteres):
-🎯 Marcador probable: [Local] X-Y [Visitante]
-📊 1X2: Local NN% · Empate NN% · Visitante NN%
-⚽ Mercados: Over/Under 2.5 (rec.) · BTTS Sí/No · Hándicap sugerido
-💡 Apuestas:
-1) [apuesta] — confianza Alta/Media/Baja
-2) [apuesta] — confianza Alta/Media/Baja
-3) [apuesta] — confianza Alta/Media/Baja
-📌 Clave: [1 frase con el dato más relevante: forma, baja importante, etc.]
-⚠️ [1 riesgo concreto]`;
-
-export async function generatePrediction(match, { apiKey, model }) {
-  const client = new Anthropic({ apiKey });
-  const tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 8 }];
-
-  const userPrompt = `Genera el pronóstico para este partido:
-Liga: ${match.league}
-Local: ${match.home}
-Visitante: ${match.away}
-Fecha/hora: ${match.kickoff}
-
-Busca información actualizada en la web (forma, lesiones, H2H, cuotas). Sigue exactamente el formato indicado. Si no hay partido programado, dilo.`;
-
-  let messages = [{ role: 'user', content: userPrompt }];
-  let assistantBlocks = [];
-  let text = '';
-
-  // Bucle para manejar stop_reason 'pause_turn' (turnos largos con búsqueda web).
-  for (let cont = 0; cont < 6; cont++) {
-    const resp = await client.messages.create({
-      model,
-      max_tokens: 2000,
-      system: SYSTEM,
-      tools,
-      messages
+// Contexto con IA (opcional). Devuelve { items, notes } y nunca lanza: si falla, el pronóstico sigue sin contexto.
+async function aiContext({ apiKey, model }, cfg, event, input, fc) {
+  try {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const longDate = { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    const userPrompt = Data.contextUserPrompt({
+      cfg, event, input, fc,
+      todayText: new Date().toLocaleDateString('es-CO', longDate),
+      kickoffText: new Date(event.date).toLocaleString('es-CO', { ...longDate, hour: '2-digit', minute: '2-digit' }) + ' (hora de Colombia)'
     });
-
-    text += resp.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-
-    if (resp.stop_reason === 'pause_turn') {
-      assistantBlocks = assistantBlocks.concat(resp.content);
-      messages = [messages[0], { role: 'assistant', content: assistantBlocks }];
-      continue;
+    // La variante básica de la búsqueda devuelve cada resultado con su URL: así se comprueba la fuente.
+    const tool = { type: 'web_search_20250305', name: 'web_search', max_uses: 6 };
+    if (cfg.country === 'CO') tool.user_location = { type: 'approximate', city: 'Bogotá', region: 'Bogotá', country: 'CO', timezone: TZ };
+    let messages = [{ role: 'user', content: userPrompt }];
+    const blocks = [];
+    let stop = null;
+    for (let i = 0; i < 6; i++) {
+      const msg = await client.messages.stream({ model, max_tokens: 16000, system: Data.CONTEXT_SYSTEM, tools: [tool], messages }).finalMessage();
+      blocks.push(...msg.content);
+      stop = msg.stop_reason;
+      if (stop !== 'pause_turn') break;
+      messages = [{ role: 'user', content: userPrompt }, { role: 'assistant', content: blocks.slice() }];
     }
-    break;
+    if (stop !== 'end_turn') return { items: [], notes: [`Contexto con IA incompleto (${stop}): no se usó.`] };
+    const text = blocks.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    const seen = [];
+    for (const b of blocks) if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) for (const r of b.content) if (r && typeof r.url === 'string') seen.push(r.url);
+    const items = Data.verifyContext(Data.extractContext(text).contexto, seen);
+    return { items, notes: [] };
+  } catch (e) {
+    return { items: [], notes: [`No se pudo consultar el contexto con IA: ${e.message}`] };
   }
+}
 
-  return text.trim();
+// Pronóstico completo de un partido. ai = { apiKey, model } o null.
+export async function buildForecast(slug, event, ai) {
+  const cfg = LEAGUES[slug];
+  if (!cfg) throw new Error(`Liga desconocida: ${slug}`);
+  const parts = await Data.loadMatch(slug, cfg, event);
+  let input = Data.buildInput(parts);
+  let fc = Engine.forecast(input);
+  let context = [], notes = [];
+  if (ai && ai.apiKey && fc.final) {
+    const r = await aiContext(ai, cfg, event, input, fc);
+    context = r.items; notes = r.notes;
+    const used = context.filter((c) => c.used);
+    if (used.length) { input = Data.buildInput({ ...parts, context: used }); fc = Engine.forecast(input); }
+  }
+  return { cfg, event, fc, context, notes };
+}
+
+// Mensaje de WhatsApp (texto plano con *negritas*). Función pura: se prueba sin red.
+export function formatMessage({ cfg, event, fc, context, notes }) {
+  const when = new Date(event.date).toLocaleString('es-CO', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const L = [`⚽ *${event.home.name} vs ${event.away.name}*`, `${cfg.name} · ${when}`, ''];
+  if (!fc.final) {
+    L.push('No hay datos suficientes para pronosticar este partido.');
+    return L.join('\n');
+  }
+  const top = fc.topScores[0];
+  L.push(`📊 ${event.home.name} ${pct(fc.final.home)} · Empate ${pct(fc.final.draw)} · ${event.away.name} ${pct(fc.final.away)}`);
+  L.push(`🥅 Más de 2,5 goles: ${pct(fc.final.over25)} · Ambos anotan: ${pct(fc.btts)}`);
+  L.push(`🎯 Marcador más probable: ${top.home}-${top.away} (1 de cada ${Math.max(2, Math.round(1 / top.p))})`);
+  const parts = [];
+  if (fc.market.x) parts.push(`mercado ${fc.market.x.map(pct).join('/')}`);
+  if (fc.model.ok) parts.push(`modelo ${fc.model.probs.map(pct).join('/')}`);
+  if (parts.length) L.push(`🔎 ${parts.join(' · ')}`);
+  // Las razones que hablan de las cuotas escritas por el usuario no aplican al bot
+  const why = fc.quality.reasons.find((r) => !/usted|Sus casas/i.test(r));
+  L.push(`📎 Calidad de los datos: ${fc.quality.level}` + (why ? ` — ${why}` : ''));
+  const used = (context || []).filter((c) => c.used);
+  if (used.length) {
+    L.push('', '📰 Novedades confirmadas:');
+    for (const c of used) {
+      const who = c.team === 'home' ? event.home.name : c.team === 'away' ? event.away.name : 'Partido';
+      L.push(`• ${who}: ${c.type === 'baja' ? 'baja de ' + (c.player || 'un jugador') : c.type === 'rotacion' ? 'rotación de titulares' : 'sin público'}`);
+    }
+  }
+  for (const n of (notes || [])) L.push(`(${n})`);
+  L.push('', '⚠️ Estimación estadística, no una garantía: 60% significa que falla 4 de cada 10 veces. Para saber si una cuota vale la pena, compárela en la app.');
+  return L.join('\n');
 }

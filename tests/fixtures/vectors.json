@@ -1,0 +1,126 @@
+[
+ {
+  "poisson": {
+   "pH": 0.438043,
+   "pD": 0.266345,
+   "pA": 0.295613,
+   "pOver25": 0.456187,
+   "pBTTS": 0.502617,
+   "topScore": "1-1"
+  },
+  "dixon_coles": {
+   "pH": 0.425401,
+   "pD": 0.291627,
+   "pA": 0.282971,
+   "pOver25": 0.456187,
+   "pBTTS": 0.515258,
+   "topScore": "1-1"
+  },
+  "devig_a": {
+   "mult": [
+    0.434038,
+    0.255731,
+    0.310231
+   ],
+   "power": [
+    0.439692,
+    0.25172,
+    0.308588
+   ],
+   "power_k": 1.054349,
+   "shin": [
+    0.438281,
+    0.252473,
+    0.309246
+   ],
+   "shin_z": 0.028473
+  },
+  "devig_b": {
+   "mult": [
+    0.756447,
+    0.157593,
+    0.08596
+   ],
+   "power": [
+    0.784325,
+    0.142181,
+    0.073495
+   ],
+   "power_k": 1.088682,
+   "shin": [
+    0.774548,
+    0.149826,
+    0.075626
+   ],
+   "shin_z": 0.029971
+  },
+  "rps": {
+   "home": 0.145,
+   "draw": 0.145,
+   "away": 0.445
+  },
+  "method": "JavaScript ejecutado con Node.js (script /tmp/vec/v.js). Matriz 11x11 (0..10) Poisson renormalizada; Dixon-Coles con tau y renormalizacion; devig multiplicativo, power (biseccion en k, 200 iteraciones) y Shin (biseccion en z en [0,0.5)); RPS acumulado. Se verifico en codigo que cada vector de probabilidades suma 1 con tolerancia 1e-9. Valores redondeados a 6 decimales."
+ },
+ {
+  "poisson": {
+   "pH": 0.438043,
+   "pD": 0.266345,
+   "pA": 0.295613,
+   "pOver25": 0.456187,
+   "pBTTS": 0.502617,
+   "topScore": "1-1"
+  },
+  "dixon_coles": {
+   "pH": 0.425401,
+   "pD": 0.291627,
+   "pA": 0.282971,
+   "pOver25": 0.456187,
+   "pBTTS": 0.515258,
+   "topScore": "1-1"
+  },
+  "devig_a": {
+   "mult": [
+    0.434038,
+    0.255731,
+    0.310231
+   ],
+   "power": [
+    0.439692,
+    0.25172,
+    0.308588
+   ],
+   "power_k": 1.054349,
+   "shin": [
+    0.438281,
+    0.252473,
+    0.309246
+   ],
+   "shin_z": 0.028473
+  },
+  "devig_b": {
+   "mult": [
+    0.756447,
+    0.157593,
+    0.08596
+   ],
+   "power": [
+    0.784325,
+    0.142181,
+    0.073495
+   ],
+   "power_k": 1.088682,
+   "shin": [
+    0.774548,
+    0.149826,
+    0.075626
+   ],
+   "shin_z": 0.029971
+  },
+  "rps": {
+   "home": 0.145,
+   "draw": 0.145,
+   "away": 0.445
+  },
+  "method": "Python 3 (solo biblioteca estandar: math, json), script ejecutado en /tmp/claude-0/-home-user-Jh/03a28a42-2bab-5a41-bfb6-47fcffcbe255/scratchpad/tv.py. Matriz de marcadores 0..10 x 0..10 renormalizada; Dixon-Coles con tau segun la definicion dada (rho=-0.10); power y shin resueltos por biseccion (300 iteraciones; k en [0.5,5], z en [0,0.499999]); RPS con acumuladas. Se verifico con assert que cada vector de probabilidades suma 1 con tolerancia 1e-9. Valores redondeados a 6 decimales."
+ }
+]

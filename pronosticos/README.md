@@ -1,72 +1,68 @@
-# ⚽ Pronósticos de Fútbol con IA + análisis de valor
+# ⚽ Pronósticos de Fútbol
 
-App web que genera pronósticos de partidos con la API de Claude (búsqueda web en tiempo real) y —lo importante para apostar con criterio— **calcula si hay VALOR frente a las cuotas de tu casa y cuánto apostar según tu banca**. Enfocada en la **Liga BetPlay Dimayor (Colombia)**, con Premier League, LaLiga, Serie A, Bundesliga, Ligue 1 (2026-27), Champions, Europa League y Libertadores.
+App web estática que calcula la probabilidad de cada resultado con **datos reales** y un **motor estadístico propio**. Funciona **gratis y sin registro**; la IA es un paso opcional. Enfocada en la **Liga BetPlay Dimayor**, con Premier League, LaLiga, Serie A, Bundesliga, Ligue 1 y las copas (Libertadores, Sudamericana, Champions, Europa League).
 
-En línea: **https://fabulous-unicorn-235c34.netlify.app/pronosticos/** (cuando el PR esté fusionado en `main`; mientras tanto, en la *deploy preview* del PR).
+En línea: **https://fabulous-unicorn-235c34.netlify.app/pronosticos/** (al fusionar el PR; antes, en la *deploy preview*).
 
-> **Léelo antes de apostar:** ninguna app ni modelo garantiza ganar. Las casas cobran un margen (~5-8%) en cada cuota; a largo plazo la mayoría pierde. Lo único que funciona es apostar **solo cuando hay valor** (la probabilidad real supera la implícita en la cuota), con **stakes pequeños** y **registrando resultados**. Eso es exactamente lo que esta app te ayuda a hacer.
+> **Léalo antes de apostar.** Ningún pronóstico es seguro: 70% significa que falla 3 de cada 10 veces. No está demostrado que esta app le gane a las casas de apuestas, y comprobarlo tomaría años de registro. Sirve para entender un partido y para no pagar de más por una cuota.
 
-## 🚀 Uso rápido
+## Cómo se usa
 
-1. Abre la app (URL de arriba) o sírvela localmente desde la raíz del repo:
-   ```bash
-   python3 -m http.server 8000   # http://localhost:8000/pronosticos/
-   ```
-2. **⚙️ Configurar API key** → pega tu key de [console.anthropic.com](https://console.anthropic.com/settings/keys). Se guarda solo en tu navegador.
-3. Elige la liga. En **Liga BetPlay** pulsa **📅 Ver próxima fecha** para traer los partidos reales y ponerlos con un clic.
-4. Abre **💰 Cuotas y banca**, copia las cuotas decimales de tu casa (Wplay, BetPlay, Rushbet, Codere, Betsson…) y tu banca en COP.
-5. **🔮 Generar pronóstico y valor**. Verás:
-   - **Panel de decisión**: ✅ hay valor (en qué mercados, con stake sugerido) o ⛔ no apostar.
-   - **Tabla de valor**: probabilidad del análisis, cuota justa, cuota de la casa, probabilidad implícita (sin margen), EV, veredicto y stake.
-   - El análisis completo con fuentes.
-6. Si apuestas, regístralo en **🕑 Historial** (mercado, cuota, monto) y marca el resultado después. La app calcula aciertos, ganancia y **ROI**.
+1. Elija la liga: aparecen los **próximos partidos** reales.
+2. Toque un partido: en segundos ve las probabilidades (1X2, más/menos de 2,5, ambos anotan, marcadores más probables) y la **calidad de los datos**.
+3. (Opcional) Escriba las cuotas de **dos casas** donde pueda apostar y su banca: la app dice si alguna cuota tiene valor o, lo normal, que no apueste.
+4. (Opcional) **Contexto con IA**: busca bajas y rotaciones confirmadas y ajusta el pronóstico. Requiere su propia API key de Anthropic.
+5. **Seguimiento**: cada pronóstico queda guardado; después del partido la app busca el marcador y mide sus aciertos frente al mercado.
 
-## 🧮 Cómo se calcula el valor
+## De dónde sale cada número
 
-- **Probabilidad implícita sin margen**: `(1/cuota) / Σ(1/cuotas del mercado)`. Así se descuenta el margen de la casa.
-- **EV** (valor esperado por unidad): `probabilidad × cuota − 1`. Solo se considera valor real si **EV ≥ +3%**.
-- **Stake** (Kelly fraccionado 1/4): `f = (b·p − q)/b`, con `b = cuota − 1`, `q = 1 − p`; se usa `f/4` con **tope del 3%** de la banca. Sin valor → stake 0.
-- Las probabilidades salen del análisis del modelo (bloque de datos estructurado); si no llegan, la app lo indica en vez de inventar.
-- Si no ingresas cuotas, se usan las que el análisis encuentre en la web (marcadas como "web": verifícalas).
+| Pieza | Qué es |
+|---|---|
+| **Datos** | Calendario, tabla con desglose local/visitante, torneo anterior, últimos partidos y cuotas de referencia, leídos en vivo de la API pública de ESPN (no oficial). No hay listas de equipos que mantener. |
+| **Mercado** | Las cuotas sin el margen de la casa (método de Shin en el 1X2; aditivo en el más/menos). Varias casas se combinan por media geométrica; las que comparten proveedor cuentan una vez. |
+| **Modelo de goles** | Poisson con corrección de Dixon-Coles. La fuerza de ataque y defensa de cada equipo se estima con sus goles, **encogida hacia el promedio** según el tamaño de la muestra, con el torneo anterior (peso 0,5) y sobrepeso de los últimos 5 partidos de liga. |
+| **Pronóstico final** | `mercado^(1−w) · modelo^w`, con `w` máximo de 0,20 (1X2) y 0,25 (goles) en BetPlay. Si modelo y mercado difieren más de 5 puntos, `w` baja a la mitad; más de 10, `w = 0` (manda el mercado). |
+| **Coherencia** | Se ajusta una matriz de marcadores al 1X2 y al más/menos finales; de ella salen "ambos anotan" y los marcadores exactos. |
+| **Contexto (IA)** | Solo cuenta lo *confirmado* cuya fuente es una página que la búsqueda realmente devolvió. Cada novedad mueve los goles esperados 4–5%, con tope total de 10%. |
 
-## 🇨🇴 Enfoque Liga BetPlay
+Los parámetros marcados `[M]` en `engine.js` son valores razonables **sin calibrar** con datos propios; el seguimiento existe para poder revisarlos con el tiempo.
 
-El análisis incorpora contexto colombiano: **altura** (Bogotá, Tunja, Pasto, Manizales vs. tierra caliente), **tendencia de empates** del II-2026, promedio de ~2.5 goles, **tabla del descenso**, cuadrangulares y reclasificación, y busca cuotas en casas colombianas. La búsqueda se localiza en Colombia (`user_location`).
+## Cuándo recomienda apostar (casi nunca)
 
-## 🧠 Modelos
+Todas estas condiciones a la vez: cuotas de **dos casas independientes** escritas por usted hace menos de 6 horas; calidad de datos Completa o Parcial; la cuota paga al menos **+3%** sobre el consenso de sus propias casas **y** sobre el pronóstico final (se toma el menor); la diferencia entre casas no supera 10% (más suele ser un error de tecleo); modelo y mercado no discrepan en más de 10 puntos; cuota ≤ 6. Monto: Kelly 1/4 con tope del **1% de la banca**, redondeado hacia abajo a $1.000; una sola apuesta por partido. Nunca recomienda combinadas, marcador exacto ni "ambos anotan".
 
-- **Claude Sonnet 5** (recomendado) · **Claude Opus 4.8** (más profundo, más caro) · **Claude Haiku 4.5** (económico)
+El valor que detecta viene de que **su casa paga más que las otras**, no de que la app sepa más que el mercado.
 
-Cada consulta muestra su costo estimado (tokens + búsquedas) en USD y COP aproximado.
+## Seguimiento honesto
 
-## 🔒 Seguridad
+- Se guarda el último pronóstico visto hasta 5 minutos antes del partido; después ya no se modifica.
+- Con menos de 100 partidos resueltos solo se muestra la lista y "todavía es ruido".
+- Desde 100: diferencia de RPS frente al mercado con intervalo del 98% (bootstrap) y calibración del favorito.
+- Ganancias y pérdidas de las apuestas se muestran como hechos, con la advertencia de que hacen falta cientos para distinguir habilidad de suerte.
 
-- Renderizador Markdown propio que escapa HTML y valida URLs (sin XSS desde páginas web consultadas).
-- CSP restrictiva; `textContent` en los estados; el panel de valor se construye con DOM, sin `innerHTML`.
-- System prompt que trata el contenido web como dato no confiable (defensa contra *prompt injection*).
-- Botón **Borrar clave**; la key nunca sale de tu navegador.
+## Privacidad y seguridad
 
-## 🗂️ Funciones
+- Sin servidor propio ni cuentas: todo se guarda en su navegador (`localStorage`).
+- La página solo puede conectarse a ESPN (datos) y a Anthropic (IA opcional), por su política de seguridad de contenido (CSP). A ESPN no se le envía ningún dato suyo; la API key solo va a Anthropic.
+- Todo dato externo se muestra como texto. El análisis de la IA pasa por un renderizador que escapa el HTML y valida los enlaces.
 
-- Streaming en vivo con progreso de búsquedas; manejo de `pause_turn` y truncado; reintentos 429/529; Cancelar.
-- Próxima fecha Liga BetPlay (JSON verificado en web, caché 12 h).
-- Historial con **registro de apuestas y ROI**; copiar y compartir por WhatsApp (incluye la decisión de valor).
-- Guía **"Cómo apostar mejor"** dentro de la app (margen, valor, banca, simples vs. combinadas, expectativas reales).
-- Accesible: `<dialog>` nativo, `aria-live`, `focus-visible`, responsive.
+## Límites conocidos
 
-## ⚠️ Aviso importante
+- La fuente de datos es una API **no oficial**: puede cambiar o caerse. Si falla, la app lo dice y no inventa nada.
+- Las cuotas de referencia son de una casa internacional; las de su casa pueden diferir.
+- El modelo no conoce lesiones ni rotaciones por sí solo, y los cuadrangulares, finales y copas se parecen menos a la fase regular: ahí la calidad de datos baja.
+- La comprobación de fuentes de la IA verifica que la página fue devuelta por la búsqueda, no que diga exactamente lo que la IA resume.
 
-**Ningún modelo puede pronosticar fútbol con 99-100% de certeza.** Un apostador disciplinado y bueno logra un ROI del 2-5% a largo plazo, con rachas malas incluidas. Apuesta solo lo que puedas permitirte perder; nunca persigas pérdidas. Si el juego se vuelve un problema, busca ayuda profesional.
-
-## 📁 Estructura
+## Archivos
 
 ```
-pronosticos/index.html   UI (selectores, próxima fecha, cuotas y banca, panel de decisión, historial, guía)
-pronosticos/leagues.js   Equipos por liga (2026 / 2026-27)
-pronosticos/app.js       Lógica: API con streaming, Markdown seguro, valor/EV/Kelly, historial y ROI
-whatsapp-bot/            Bot opcional que envía pronósticos por WhatsApp 1 h antes (requiere tus cuentas y un servidor)
+index.html   Página (estilos incluidos)
+leagues.js   Ligas disponibles y altitud de las sedes colombianas
+engine.js    Motor: modelo de goles, cuotas sin margen, mezcla, reglas de apuesta, métricas
+data.js      Lectura y validación de datos (ESPN) e instrucciones para la IA
+app.js       Interfaz, llamada opcional a la IA y seguimiento
 ```
 
-## 🔄 Mantenimiento de datos
+Pruebas (sin dependencias): `node tests/run.js` desde la raíz del repositorio. Incluyen vectores calculados por dos implementaciones independientes, un ejemplo numérico completo y respuestas reales guardadas de la fuente de datos.
 
-Las plantillas de ligas domésticas se actualizan por temporada. Las continentales usan texto libre porque sus participantes cambian por edición; la búsqueda web valida cualquier equipo escrito.
+Para verla en local: `python3 -m http.server 8000` en la raíz y abrir `http://localhost:8000/pronosticos/`.

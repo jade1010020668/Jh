@@ -2,17 +2,18 @@
 
 Pequeñas apps web estáticas, publicadas en Netlify (cada cambio en `main` se publica solo).
 
-## ⚽ [Pronósticos de fútbol con IA](pronosticos/) — análisis de valor para apostar con criterio
+## ⚽ [Pronósticos de fútbol](pronosticos/) — probabilidades con datos reales y un motor estadístico
 
-Pronósticos con datos reales en vivo (API de Claude + búsqueda web) y **cálculo de valor** frente a las cuotas de tu casa, con **stake sugerido** según tu banca y **registro de apuestas/ROI**. Enfocada en la **Liga BetPlay** (altura, empates, descenso, cuotas colombianas) y con las grandes ligas europeas.
+Elija un partido de la **Liga BetPlay** (o de las grandes ligas) y vea al instante la probabilidad de cada resultado, calculada con la tabla y los resultados reales de cada equipo, un modelo de goles y las cuotas del mercado sin su margen. **Gratis, sin registro y sin IA obligatoria.**
 
-- Elige liga y equipos (o trae la **próxima fecha de la Liga BetPlay** con un clic), ingresa tus cuotas y tu banca.
-- Te dice si **hay valor** (y cuánto apostar) o si **no conviene apostar** ese partido.
-- Historial con aciertos, ganancia y ROI; copiar y compartir por WhatsApp.
+- Dice con franqueza qué tan bien respaldado está cada número ("calidad de los datos").
+- Si usted escribe las cuotas de dos casas, indica si alguna tiene valor; lo normal es que recomiende **no apostar**.
+- Guarda cada pronóstico y **mide sus propios aciertos** frente al mercado.
+- Paso opcional con IA para bajas y rotaciones confirmadas.
 
-En línea en **https://fabulous-unicorn-235c34.netlify.app/pronosticos/**. Necesitas tu propia API key de Anthropic (se guarda solo en tu navegador). Detalles: **[pronosticos/README.md](pronosticos/README.md)**. Bot opcional para WhatsApp: **[whatsapp-bot/](whatsapp-bot/)**.
+En línea en **https://fabulous-unicorn-235c34.netlify.app/pronosticos/**. Detalles: **[pronosticos/README.md](pronosticos/README.md)**. Bot opcional que envía el pronóstico por WhatsApp antes de cada partido: **[whatsapp-bot/](whatsapp-bot/)**. Pruebas: `node tests/run.js`.
 
-> Ninguna app garantiza ganar apostando: las casas cobran un margen en cada cuota. Esta herramienta sirve para apostar **solo con valor y con disciplina**. Juega responsable.
+> Ninguna app garantiza ganar apostando. Juegue con responsabilidad.
 
 ## 🔥 [Sala FF](sala/) — organizador de salas de Free Fire
 

@@ -1,181 +1,59 @@
-// Equipos por liga. Rosters: temporada 2026 (Colombia) y 2026-27 (Europa).
-// REVISAR en cada cambio de temporada: Colombia en enero (ascensos/descensos de diciembre)
-// y Europa en agosto. Las competiciones continentales cambian de participantes en cada
-// edición, por eso usan entrada de texto libre.
-// En TODAS las ligas el selector ofrece además "✏️ Otro equipo…" para escribir
-// cualquier club; la búsqueda web valida y trae los datos del partido.
-const LEAGUES = {
-  "liga-betplay": {
-    name: "Liga BetPlay Dimayor (Colombia) 2026",
-    country: "Colombia",
-    teams: [
-      "Águilas Doradas",
-      "Alianza Valledupar",
-      "América de Cali",
-      "Atlético Bucaramanga",
-      "Atlético Nacional",
-      "Boyacá Chicó",
-      "Cúcuta Deportivo",
-      "Deportes Tolima",
-      "Deportivo Cali",
-      "Deportivo Pasto",
-      "Deportivo Pereira",
-      "Fortaleza FC",
-      "Independiente Medellín",
-      "Independiente Santa Fe",
-      "Internacional de Bogotá",
-      "Jaguares de Córdoba",
-      "Junior de Barranquilla",
-      "Llaneros FC",
-      "Millonarios FC",
-      "Once Caldas"
-    ]
-  },
-  "premier-league": {
-    name: "Premier League (Inglaterra) 2026-27",
-    country: "Inglaterra",
-    teams: [
-      "Arsenal",
-      "Aston Villa",
-      "Bournemouth",
-      "Brentford",
-      "Brighton & Hove Albion",
-      "Chelsea",
-      "Coventry City",
-      "Crystal Palace",
-      "Everton",
-      "Fulham",
-      "Hull City",
-      "Ipswich Town",
-      "Leeds United",
-      "Liverpool",
-      "Manchester City",
-      "Manchester United",
-      "Newcastle United",
-      "Nottingham Forest",
-      "Sunderland",
-      "Tottenham Hotspur"
-    ]
-  },
-  "la-liga": {
-    name: "LaLiga EA Sports (España) 2026-27",
-    country: "España",
-    teams: [
-      "Alavés",
-      "Athletic Club",
-      "Atlético de Madrid",
-      "FC Barcelona",
-      "Celta de Vigo",
-      "Deportivo de La Coruña",
-      "Elche",
-      "Espanyol",
-      "Getafe",
-      "Levante",
-      "Málaga CF",
-      "Osasuna",
-      "Racing de Santander",
-      "Rayo Vallecano",
-      "Real Betis",
-      "Real Madrid",
-      "Real Sociedad",
-      "Sevilla",
-      "Valencia",
-      "Villarreal"
-    ]
-  },
-  "serie-a": {
-    name: "Serie A (Italia) 2026-27",
-    country: "Italia",
-    teams: [
-      "Atalanta",
-      "Bologna",
-      "Cagliari",
-      "Como",
-      "Fiorentina",
-      "Frosinone",
-      "Genoa",
-      "Inter de Milán",
-      "Juventus",
-      "Lazio",
-      "Lecce",
-      "AC Milan",
-      "Monza",
-      "Napoli",
-      "Parma",
-      "AS Roma",
-      "Sassuolo",
-      "Torino",
-      "Udinese",
-      "Venezia"
-    ]
-  },
-  "bundesliga": {
-    name: "Bundesliga (Alemania) 2026-27",
-    country: "Alemania",
-    teams: [
-      "FC Augsburg",
-      "Bayer Leverkusen",
-      "Bayern Múnich",
-      "Borussia Dortmund",
-      "Borussia Mönchengladbach",
-      "Eintracht Frankfurt",
-      "SV Elversberg",
-      "SC Freiburg",
-      "Hamburger SV",
-      "TSG Hoffenheim",
-      "1. FC Köln",
-      "RB Leipzig",
-      "Mainz 05",
-      "SC Paderborn",
-      "FC Schalke 04",
-      "VfB Stuttgart",
-      "Union Berlin",
-      "Werder Bremen"
-    ]
-  },
-  "ligue-1": {
-    name: "Ligue 1 (Francia) 2026-27",
-    country: "Francia",
-    teams: [
-      "Angers SCO",
-      "AJ Auxerre",
-      "Stade Brestois",
-      "Le Havre AC",
-      "Le Mans FC",
-      "RC Lens",
-      "Lille OSC",
-      "FC Lorient",
-      "Olympique de Lyon",
-      "Olympique de Marsella",
-      "AS Mónaco",
-      "OGC Nice",
-      "Paris FC",
-      "Paris Saint-Germain",
-      "Stade Rennais",
-      "RC Strasbourg",
-      "Toulouse FC",
-      "ESTAC Troyes"
-    ]
-  },
-  "copa-libertadores": {
-    name: "Copa Libertadores (CONMEBOL)",
-    country: "Sudamérica",
-    note: "Los participantes cambian en cada edición: escribe los dos clubes; la búsqueda web valida los datos del partido.",
-    freeTextOnly: true,
-    teams: []
-  },
-  "champions-league": {
-    name: "UEFA Champions League",
-    country: "Europa",
-    note: "Los participantes cambian en cada edición: escribe los dos clubes; la búsqueda web valida los datos del partido.",
-    freeTextOnly: true,
-    teams: []
-  },
-  "europa-league": {
-    name: "UEFA Europa League",
-    country: "Europa",
-    note: "Los participantes cambian en cada edición: escribe los dos clubes; la búsqueda web valida los datos del partido.",
-    freeTextOnly: true,
-    teams: []
+// Ligas disponibles. La clave es el identificador de la liga en la fuente de datos (ESPN).
+// Ya NO se guardan listas de equipos: tabla, calendario y equipos se leen en vivo, así que
+// ascensos, descensos y cambios de nombre no requieren mantenimiento.
+//   group: parámetros del modelo ('betplay' | 'europa'); null = sin modelo de goles (solo mercado).
+//   kind:  'liga' (tabla única, hay modelo) | 'copa' (equipos de ligas distintas: solo mercado).
+(function (root) {
+  'use strict';
+
+  const LEAGUES = {
+    'col.1': { name: 'Liga BetPlay Dimayor (Colombia)', group: 'betplay', kind: 'liga', country: 'CO' },
+    'eng.1': { name: 'Premier League (Inglaterra)', group: 'europa', kind: 'liga' },
+    'esp.1': { name: 'LaLiga (España)', group: 'europa', kind: 'liga' },
+    'ita.1': { name: 'Serie A (Italia)', group: 'europa', kind: 'liga' },
+    'ger.1': { name: 'Bundesliga (Alemania)', group: 'europa', kind: 'liga' },
+    'fra.1': { name: 'Ligue 1 (Francia)', group: 'europa', kind: 'liga' },
+    'conmebol.libertadores': { name: 'Copa Libertadores', group: null, kind: 'copa' },
+    'conmebol.sudamericana': { name: 'Copa Sudamericana', group: null, kind: 'copa' },
+    'uefa.champions': { name: 'UEFA Champions League', group: null, kind: 'copa' },
+    'uefa.europa': { name: 'UEFA Europa League', group: null, kind: 'copa' }
+  };
+
+  // Altitud aproximada (m s. n. m., ±50 m) de las ciudades sede del fútbol colombiano.
+  // Solo se usa cuando no hay desglose local/visitante (que ya refleja el efecto de la sede).
+  const CITY_ALTITUDE_M = {
+    'bogota': 2600, 'tunja': 2810, 'pasto': 2527, 'manizales': 2150, 'medellin': 1495, 'itagui': 1550,
+    'envigado': 1575, 'rionegro': 2125, 'pereira': 1411, 'armenia': 1480, 'ibague': 1285, 'cali': 1000,
+    'palmira': 1000, 'bucaramanga': 960, 'floridablanca': 925, 'villavicencio': 467, 'yopal': 350,
+    'cucuta': 320, 'valledupar': 170, 'neiva': 442, 'barranquilla': 20, 'monteria': 18, 'santa marta': 6,
+    'cartagena': 2, 'popayan': 1740, 'tulua': 970, 'barrancabermeja': 75
+  };
+  // Ciudad base de cada club (palabra clave del nombre → ciudad). El orden importa: lo más específico primero.
+  const CLUB_BASE_CITY = [
+    ['aguilas', 'medellin'], ['alianza', 'valledupar'], ['america', 'cali'], ['bucaramanga', 'bucaramanga'],
+    ['nacional', 'medellin'], ['chico', 'tunja'], ['cucuta', 'cucuta'], ['tolima', 'ibague'],
+    ['deportivo cali', 'palmira'], ['pasto', 'pasto'], ['pereira', 'pereira'], ['fortaleza', 'bogota'],
+    ['medellin', 'medellin'], ['santa fe', 'bogota'], ['internacional', 'bogota'], ['equidad', 'bogota'],
+    ['jaguares', 'monteria'], ['junior', 'barranquilla'], ['llaneros', 'villavicencio'], ['millonarios', 'bogota'],
+    ['once caldas', 'manizales'], ['envigado', 'envigado'], ['magdalena', 'santa marta'], ['cartagena', 'cartagena'],
+    ['huila', 'neiva'], ['quindio', 'armenia'], ['patriotas', 'tunja'], ['cali', 'palmira']
+  ];
+
+  const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  function cityAltitude(city) {
+    const c = norm(city);
+    if (!c) return null;
+    for (const k of Object.keys(CITY_ALTITUDE_M)) if (c === k || c.startsWith(k + ' ') || c.endsWith(' ' + k) || c.includes(' ' + k + ' ')) return CITY_ALTITUDE_M[k];
+    return null;
   }
-};
+  function clubBaseAltitude(teamName) {
+    const n = ' ' + norm(teamName) + ' ';
+    for (const [key, city] of CLUB_BASE_CITY) if (n.includes(' ' + key + ' ')) return CITY_ALTITUDE_M[city];
+    return null;
+  }
+
+  const api = { LEAGUES, CITY_ALTITUDE_M, cityAltitude, clubBaseAltitude, norm };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else { root.LEAGUES = LEAGUES; root.Leagues = api; }
+})(typeof window !== 'undefined' ? window : globalThis);
