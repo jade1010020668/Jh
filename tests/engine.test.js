@@ -2,6 +2,12 @@ const E = require('../pronosticos/engine.js');
 const V = require('./fixtures/vectors.json');
 const { ok, near, section } = require('./harness.js');
 
+// El ejemplo numérico de la especificación se calculó con sus parámetros originales. El motor ya usa
+// otros (calibrados con partidos reales), así que aquí se restauran los originales y al final se devuelven.
+const CALIBRATED = { ...E.PARAMS.betplay };
+const SPEC = { g0: 2.40, h: 0.595, k0: 100, k1: 14, k2: 12, useSplit: true, wPrev: 0.5, w5: 0.5, rho: -0.08, w1x2: 0.20, wOver: 0.25 };
+Object.assign(E.PARAMS.betplay, SPEC);
+
 section('Primitivas contra dos implementaciones independientes (Python y Node)');
 for (const v of V) {
   for (const [name, rho] of [['poisson', 0], ['dixon_coles', -0.1]]) {
@@ -181,4 +187,20 @@ section('Métricas de seguimiento');
   const recs = []; for (let i = 0; i < 12; i++) recs.push({ final: [0.5, 0.3, 0.2], market: [0.45, 0.3, 0.25], outcome: i % 3 });
   const ts = E.trackSummary(recs); ok(ts.n === 12 && ts.stage === 'ruido' && ts.favHit === 4, 'trackSummary básico'); ok(ts.diff && Number.isFinite(ts.diff.mean), 'diferencia frente al mercado');
   ok(E.trackSummary([]).n === 0, 'trackSummary vacío');
+}
+
+Object.assign(E.PARAMS.betplay, CALIBRATED);
+
+section('Parámetros calibrados (los que usa la app)');
+{
+  const P = E.PARAMS.betplay;
+  ok(P.useSplit === false && P.wPrev === 1 && P.h === 0.615 && P.wOver === 0, 'parámetros de la Liga BetPlay calibrados');
+  const fc = E.forecast(exampleInput());
+  ok(fc.model.level === 'total', 'el desglose local/visitante no se usa');
+  near(fc.final.over25, fc.market.over, 1e-12, 'con cuotas de goles, el más/menos final es el del mercado');
+  const noOU = exampleInput(); noOU.houses.forEach(h => { delete h.odds.over25; delete h.odds.under25; });
+  const f2 = E.forecast(noOU); const g = f2.model.league.g;
+  near(f2.final.over25, 0.5 * f2.model.over25 + 0.5 * (1 - Math.exp(-g) * (1 + g + g * g / 2)), 1e-12, 'sin cuotas de goles: mitad modelo, mitad promedio de la liga');
+  ok(/poco fiable/.test(f2.overSource), 'y se avisa que es poco fiable');
+  ok(E.evaluateBets(fc, { bankroll: 2000000 }).rows.length === 10, 'se siguen evaluando las diez cuotas escritas');
 }

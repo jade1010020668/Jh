@@ -52,7 +52,7 @@ ok(input.model.home.last5.length === 4 && input.model.home.last5.every(e => e.le
 ok(input.houses.length === 1 && input.houses[0].src === 'H', 'una casa hallada');
 ok(input.model.altitude.venueM === 1495 && input.model.altitude.awayBaseM === 2150 && input.venueConfirmed, 'altitudes: Medellín y Manizales');
 const fc = E.forecast(input);
-ok(fc.model.ok && fc.model.level === 'split', 'modelo con desglose');
+ok(fc.model.ok && fc.model.level === 'total', 'modelo con totales (el desglose no se usa: empeoraba el pronóstico)');
 near(fc.final.home + fc.final.draw + fc.final.away, 1, 1e-9, 'el 1X2 final suma 1');
 ok(fc.model.lambda > 1.2 && fc.model.lambda < 2.6 && fc.model.mu > 0.5 && fc.model.mu < 1.6, `goles esperados plausibles (${fc.model.lambda.toFixed(2)} – ${fc.model.mu.toFixed(2)})`);
 ok(fc.quality.level === 'Pobre' || fc.quality.level === 'Parcial', 'sin cuotas del usuario nunca es calidad Completa');

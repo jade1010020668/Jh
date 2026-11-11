@@ -4,23 +4,33 @@
 // Idea central: las cuotas de las casas (sin su margen) son el mejor pronóstico público que
 // existe. El modelo de goles propio (Poisson + Dixon-Coles con fuerzas de ataque/defensa
 // encogidas hacia la media) solo las ajusta un poco, y nunca cuando discrepa demasiado.
-// Los parámetros marcados [M] son valores razonables SIN calibrar con datos propios.
+// Los parámetros de la Liga BetPlay se calibraron con una prueba retrospectiva sobre 1.494 partidos
+// reales de 2023-2026 (tools/backtest/backtest.js): ajuste con 2023-24, validación con 2025-26.
+// Los marcados [M] son valores razonables SIN calibrar (no hay historial de cuotas para medirlos).
 (function (root) {
   'use strict';
 
   // ---------- Parámetros por grupo de liga ----------
   const PARAMS = {
     betplay: {
-      g0: 2.40, h: 0.595,            // [M] goles por partido y fracción que anota el local (2023-26: 2,32 y 59,5%)
+      g0: 2.40,                      // goles por partido de partida (2023-26: 2,32; 2026: 2,53)
+      h: 0.615,                      // fracción de los goles que anota el local. Calibrado: con 0,595 el modelo
+                                     // daba 45% de victorias locales cuando en la realidad son 47%
       k0: 100, k1: 14, k2: 12,       // pseudo-partidos de encogimiento: liga, equipo, desglose local/visitante
-      wPrev: 0.5, w5: 0.5,           // peso del torneo anterior y sobrepeso de los últimos 5
-      rho: -0.08,                    // [M] corrección Dixon-Coles (más empates y marcadores bajos)
-      w1x2: 0.20, wOver: 0.25,       // [M] peso máximo del modelo frente al mercado
+      useSplit: false,               // Calibrado: usar el desglose local/visitante de cada equipo EMPEORA el
+                                     // pronóstico (son ~9 partidos por condición: más ruido que señal)
+      wPrev: 1.0,                    // Calibrado: el torneo anterior pesa igual que el actual (con 0,5 era peor)
+      w5: 0.5,                       // sobrepeso de los últimos 5 (efecto no distinguible del ruido)
+      rho: -0.08,                    // corrección Dixon-Coles (más empates y marcadores bajos)
+      w1x2: 0.20,                    // [M] peso máximo del modelo frente al mercado
+      wOver: 0,                      // Calibrado: en goles totales el modelo NO supera al promedio de la liga,
+                                     // así que frente al mercado no pesa nada
       base: { home: 0.47, draw: 0.30, away: 0.23, over25: 0.43 },
-      altC: 0.04, altMean: 0.57      // [M] efecto de la altura por km y diferencia media de la liga
+      altC: 0.04, altMean: 0.57      // efecto de la altura por km (pequeño; no distinguible del ruido)
     },
     europa: {
-      g0: 2.75, h: 0.555, k0: 100, k1: 8, k2: 12, wPrev: 0.3, w5: 0.5, rho: -0.05,
+      g0: 2.75, h: 0.555, k0: 100, k1: 8, k2: 12, wPrev: 0.3, w5: 0.5, rho: -0.05, // [M] sin prueba retrospectiva propia
+      useSplit: false,               // [M] se aplica lo aprendido en la Liga BetPlay
       w1x2: 0.15, wOver: 0.20,
       base: { home: 0.45, draw: 0.25, away: 0.30, over25: 0.52 },
       altC: 0, altMean: 0
@@ -336,7 +346,7 @@
     if (md.neutral) {
       lambda = lg.m * sh.att * sa.def; mu = lg.m * sa.att * sh.def; level = 'neutral';
       notes.push('Cancha neutral: sin ventaja de localía.');
-    } else if (sh.splitOk && sa.splitOk) {
+    } else if (P.useSplit !== false && sh.splitOk && sa.splitOk) {
       lambda = lg.muH * sh.attH * sa.defA; mu = lg.muA * sa.attA * sh.defH; level = 'split';
     } else {
       lambda = lg.muH * sh.att * sa.def; mu = lg.muA * sa.att * sh.def; level = 'total';
@@ -408,7 +418,13 @@
     let Dou = null, wOu = 0, over, overSource;
     if (mkt.over != null && hasM) { Dou = Math.abs(gm.over25 - mkt.over); wOu = modelWeight(P.wOver, Dou); over = blend([mkt.over, 1 - mkt.over], [gm.over25, 1 - gm.over25], wOu)[0]; overSource = 'mercado+modelo'; }
     else if (mkt.over != null) { over = mkt.over; overSource = 'mercado'; }
-    else if (hasM) { over = gm.over25; overSource = 'modelo'; }
+    else if (hasM) {
+      // Sin cuotas de goles: el modelo no ha demostrado habilidad en totales, así que se promedia
+      // con lo que daría un partido medio de la liga.
+      const g = gm.league.g;
+      over = 0.5 * gm.over25 + 0.5 * (1 - Math.exp(-g) * (1 + g + g * g / 2));
+      overSource = 'modelo y promedio de la liga (poco fiable)';
+    }
     else { over = base.over25; overSource = 'promedio de la liga'; }
 
     const fit = fitMatrix(final, over);

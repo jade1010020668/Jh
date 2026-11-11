@@ -357,7 +357,7 @@ function renderData() {
       tb.appendChild(tr);
     }
     t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
-    if (fc.model.ok) box.appendChild(el('p', 'small muted', `Ataque y defensa: 1,00 es el promedio de la liga (ataque más alto = anota más; defensa más baja = recibe menos). Promedio de la liga: ${dec(fc.model.league.g, 2)} goles por partido. L = de local, V = de visitante.`));
+    if (fc.model.ok) box.appendChild(el('p', 'small muted', `Ataque y defensa: 1,00 es el promedio de la liga (ataque más alto = anota más; defensa más baja = recibe menos). Promedio de la liga: ${dec(fc.model.league.g, 2)} goles por partido. L = de local, V = de visitante. Las columnas "En casa" y "Fuera" son informativas: el modelo usa los totales, porque en la prueba con partidos reales el desglose empeoraba el pronóstico.`));
   }
   const hs = fc.market.houses;
   if (hs.length) {

@@ -213,7 +213,9 @@
     };
     const home = team(event.home), away = team(event.away);
     input.phase = detectPhase(cfg, event, home, away, group.rows.length);
-    if (!home.homeRec || !away.homeRec) { notes.push('Sin desglose local/visitante fiable: se usan los totales.'); input.dataComplete = false; }
+    // El desglose solo cuenta como dato faltante si el modelo de esta liga lo usa
+    const usesSplit = Engine.PARAMS[cfg.group] && Engine.PARAMS[cfg.group].useSplit !== false;
+    if (usesSplit && (!home.homeRec || !away.homeRec)) { notes.push('Sin desglose local/visitante fiable: se usan los totales.'); input.dataComplete = false; }
     if (!prevLoaded) { notes.push('No se pudo leer el torneo anterior.'); input.dataComplete = false; }
     if (!home.last5 || !away.last5) { notes.push('Sin los últimos partidos de algún equipo.'); input.dataComplete = false; }
     if (home.promoted) notes.push(`${home.name} no jugó el torneo anterior en esta liga (se trata como recién ascendido).`);
@@ -225,7 +227,7 @@
       const venueM = event.venue ? Lg.cityAltitude(event.venue.city) : null;
       const homeBase = Lg.clubBaseAltitude(home.name), awayBase = Lg.clubBaseAltitude(away.name);
       model.altitude = { venueM: venueM != null ? venueM : homeBase, awayBaseM: awayBase, confirmed: venueM != null };
-      // Si el partido no es en la ciudad habitual del local, el desglose "en casa" ya no describe esta sede
+      // Si el partido no es en la ciudad habitual del local, la ventaja de localía ya no es la normal
       if (venueM != null && homeBase != null && Math.abs(venueM - homeBase) > 300) { input.venueConfirmed = false; notes.push(`El partido no se juega en la sede habitual de ${home.name}.`); }
       if (!event.venue || !event.venue.city) input.venueConfirmed = false;
     }

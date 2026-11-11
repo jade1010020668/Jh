@@ -19,9 +19,10 @@ Repositorio de apps web estáticas publicadas en Netlify (cada cambio en `main` 
 - La CSP permite conectar solo a `api.anthropic.com`, `site.api.espn.com` y `sports.core.api.espn.com`.
 - Sin listas de equipos en el código: tabla y calendario se leen en vivo.
 - Especificación del motor diseñada por un equipo de agentes (investigación, tres diseños, auditoría adversarial) y verificada con vectores independientes: `node tests/run.js`.
+- **Parámetros de la Liga BetPlay calibrados con datos** (`tools/backtest/`, 1.494 partidos 2023-26; ajuste en 2023-24, validación en 2025-26): el desglose local/visitante NO se usa (empeoraba), el torneo anterior pesa 1,0, la fracción de goles del local es 0,615 y en goles totales el modelo no pesa frente al mercado. RPS 0,2008 frente a 0,2140 de un pronóstico fijo.
 
 ## Pendientes y riesgos
-- Parámetros `[M]` del motor sin calibrar con datos propios.
+- Sin calibrar: el peso del modelo frente al mercado (no hay historial de cuotas) y todo lo de las ligas europeas.
 - ESPN bloquea navegadores automatizados ("HeadlessChrome"); los navegadores normales funcionan. Si la API cambia, la app avisa y no pronostica.
 - El paso de IA y los envíos reales del bot no se han probado con credenciales reales.
 - El número de teléfono del dueño estuvo en commits antiguos del bot (sigue en el historial de git).

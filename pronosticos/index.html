@@ -277,20 +277,29 @@
         <h4>1. De dónde sale cada número</h4>
         <ul>
           <li><strong>Mercado:</strong> las cuotas de las casas, quitándoles su margen. Es el mejor pronóstico público que existe: miles de personas y modelos profesionales ya pusieron dinero ahí.</li>
-          <li><strong>Modelo:</strong> un modelo de goles (Poisson con corrección de Dixon-Coles) que calcula cuánto ataca y cuánto defiende cada equipo con su tabla, su rendimiento de local y de visitante, el torneo anterior y sus últimos partidos, siempre "encogido" hacia el promedio para no creerle demasiado a pocas fechas.</li>
+          <li><strong>Modelo:</strong> un modelo de goles (Poisson con corrección de Dixon-Coles) que calcula cuánto ataca y cuánto defiende cada equipo con sus goles del torneo actual, del torneo anterior y de sus últimos partidos, siempre "encogido" hacia el promedio para no creerle demasiado a pocas fechas.</li>
           <li><strong>Pronóstico final:</strong> sobre todo el mercado, con un ajuste pequeño del modelo (máximo 20–25%), y solo si no se contradicen. Si el modelo se aleja más de 10 puntos, manda el mercado: casi siempre al modelo le falta una noticia (rotación, bajas).</li>
         </ul>
-        <h4>2. "Calidad de los datos" no es "seguridad del resultado"</h4>
+        <h4>2. Qué tan bien pronostica (medido, no prometido)</h4>
+        <p>El modelo se probó con <strong>1.494 partidos reales</strong> de la Liga BetPlay (2023 a 2026): en cada fecha pronosticó usando solo lo ocurrido antes y luego se comparó con el resultado.</p>
+        <ul>
+          <li><strong>Es mejor que no saber nada:</strong> su error (RPS 0,201) es claramente menor que el de un pronóstico fijo de 47/30/23 (0,214), también en los torneos que no se usaron para ajustarlo.</li>
+          <li><strong>Sus porcentajes son honestos:</strong> cuando dijo "67%", ocurrió cerca del 69% de las veces; en promedio pronosticó 48/29/23 y ocurrió 47/30/23.</li>
+          <li><strong>No hace magia:</strong> su favorito acertó 48 de cada 100 partidos. Apostar siempre al local acierta 47. El fútbol colombiano es muy parejo.</li>
+          <li><strong>En goles no sabe más que el promedio:</strong> para "más/menos de 2,5" el modelo no superó al promedio de la liga, así que ahí la app se fía solo de las cuotas.</li>
+          <li><strong>No se pudo comparar contra las casas</strong> porque no hay un historial público de cuotas. Lo esperable es que las casas sean algo mejores que el modelo: por eso el pronóstico final se apoya sobre todo en ellas.</li>
+        </ul>
+        <h4>3. "Calidad de los datos" no es "seguridad del resultado"</h4>
         <p>Completa, Parcial o Pobre dice qué tan bien respaldado está el número, no qué tan probable es acertar. Un 60% con calidad Completa sigue fallando 4 de cada 10 veces.</p>
-        <h4>3. Cuándo la app dice "apueste"</h4>
+        <h4>4. Cuándo la app dice "apueste"</h4>
         <p>Casi nunca, y es a propósito. Solo cuando usted escribe las cuotas de dos casas independientes y una de ellas paga claramente más que el consenso. Ese valor viene de que <em>su casa paga más que las otras</em>, no de que la app sepa más que el mercado. El monto sugerido nunca pasa del 1% de su banca y es una sola apuesta por partido.</p>
-        <h4>4. Lo que la app no hace</h4>
+        <h4>5. Lo que la app no hace</h4>
         <ul>
           <li>No recomienda combinadas, ni marcador exacto, ni "ambos anotan": son mercados con más margen y más varianza.</li>
           <li>No adivina rotaciones ni lesiones por sí sola. Para eso está el paso opcional de IA, que solo usa lo que encuentre con fuente.</li>
           <li>No promete ganancias. Un apostador muy bueno gana 2–5% a largo plazo; la mayoría pierde.</li>
         </ul>
-        <h4>5. Mídala usted mismo</h4>
+        <h4>6. Mídala usted mismo</h4>
         <p>Cada pronóstico queda guardado. En <strong>Seguimiento</strong> la app busca el marcador real y compara su acierto contra el del mercado. Con menos de 100 partidos, cualquier racha es ruido: no saque conclusiones antes.</p>
       </div>
     </details>
