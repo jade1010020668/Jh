@@ -228,7 +228,7 @@ async function selectEvent(ev) {
   markFixture();
   els.matchCard.hidden = false;
   els.matchTitle.textContent = `${ev.home.name} vs ${ev.away.name}`;
-  els.matchSub.textContent = `${LEAGUES[state.slug].name} · ${fmtDay(ev.date)}, ${fmtHour(ev.date)} (hora de Colombia)` + (ev.venue && ev.venue.name ? ` · ${ev.venue.name}` : '');
+  els.matchSub.textContent = `${LEAGUES[state.slug].name} · ${fmtDay(ev.date)}, ${fmtHour(ev.date)} (hora de Colombia)` + (ev.venue && ev.venue.name ? ` · ${ev.venue.name}` : '') + (ev.leg ? ` · partido de ${ev.leg === 1 ? 'ida' : 'vuelta'}` : '');
   els.qualityBadge.textContent = ''; els.qualityBadge.className = 'badge';
   els.forecastBox.textContent = ''; els.valueBox.textContent = ''; els.dataBox.textContent = ''; els.shareBar.hidden = true;
   showStatus('Leyendo tabla, resultados y cuotas del partido…', 'loading');

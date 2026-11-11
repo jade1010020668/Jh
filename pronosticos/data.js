@@ -99,7 +99,10 @@
       venue: venue ? { name: str(venue.fullName), city: str(venue.address && venue.address.city) } : null,
       neutral: c.neutralSite === true,
       state: str(st.state) || 'pre', completed: st.completed === true, statusName: str(st.name),
-      seasonSlug: str(e.season && e.season.slug), seasonYear: num(e.season && e.season.year), note: str(c.altGameNote) || str(c.notes && c.notes[0] && c.notes[0].headline),
+      seasonSlug: str(e.season && e.season.slug), seasonYear: num(e.season && e.season.year),
+      note: [str(c.altGameNote), str(c.notes && c.notes[0] && (c.notes[0].headline || c.notes[0].text))].filter(Boolean).join(' · '),
+      // Eliminatorias a ida y vuelta: nombre de la ronda ("Apertura - Semifinals") y número del partido (1 = ida, 2 = vuelta)
+      series: str(c.series && c.series.title), leg: int(c.leg && c.leg.value),
       house: oddsFromScoreboard(c.odds)
     };
   }
@@ -210,12 +213,17 @@
   function detectPhase(cfg, event, home, away, nRows) {
     if (!cfg || cfg.kind === 'copa') return 'copa';
     if (cfg.group !== 'betplay') return 'regular';
-    const txt = `${event.seasonSlug || ''} ${event.note || ''}`.toLowerCase();
-    // Nombres reales de la fuente: "clausura", "apertura---quarterfinals", "apertura---semifinals", "apertura---finals", "playoffs---finals"
-    if (/cuadrang|semifinal|quarter|cuartos/.test(txt)) return 'cuadrangular';
-    if (/(^|[^a-z])final(s|es)?([^a-z]|$)/.test(txt)) return 'final';
-    if (/playoff|play-off|knockout|eliminat/.test(txt)) return 'cuadrangular';
-    // Respaldo: si ambos equipos ya jugaron toda la fase regular, el partido es de fase final
+    const slug = String(event.seasonSlug || '').toLowerCase();
+    const txt = `${slug} ${event.series || ''} ${event.note || ''}`.toLowerCase();
+    // Nombres reales de la fuente (2026): "clausura", "apertura---quarterfinals", "apertura---semifinals",
+    // "apertura---finals" y, para TODA la fase eliminatoria del Clausura, "playoffs---finals".
+    // 'cuadrangular' significa aquí "fase final que no es la final": cuadrangulares, cuartos o semifinales.
+    if (/cuadrang|semifinal|quarter|cuartos|octavos/.test(txt)) return 'cuadrangular';
+    const rest = txt.replace(/play-?offs?[\s-]*finals?/g, 'playoffs'); // "Playoffs - Finals" nombra la fase entera, no la final
+    if (/(^|[^a-z])final(s|es)?([^a-z]|$)/.test(rest)) return 'final';
+    if (/playoff|knockout|eliminat/.test(rest)) return 'cuadrangular';
+    if (/^(apertura|clausura|finalizaci[oó]n)$/.test(slug)) return 'regular'; // la fuente dice que es fase regular (también en la última fecha)
+    // Respaldo, solo si la fuente no nombra la fase: si ambos ya jugaron toda la fase regular, es fase final
     const maxPj = nRows - 1;
     if (home && away && home.pj >= maxPj && away.pj >= maxPj) return 'cuadrangular';
     return 'regular';
@@ -244,6 +252,7 @@
     const sum = parts.summary || null;
     const h = (sum && sum.house) || event.house;
     if (h) input.houses.push(h);
+    if (event.leg) notes.push(`Eliminatoria a ida y vuelta (partido de ${event.leg === 1 ? 'ida' : 'vuelta'}): el pronóstico es del marcador de ESTE partido a los 90 minutos, no de quién clasifica` + (event.leg > 1 ? '; el modelo de goles no tiene en cuenta el resultado de la ida.' : '.'));
 
     if (cfg.kind !== 'liga' || !cfg.group) return input; // copas: equipos de ligas distintas, no hay modelo de goles (el motor lo explica)
     const both = (g) => g.rows.some(r => r.id === event.home.id) && g.rows.some(r => r.id === event.away.id);

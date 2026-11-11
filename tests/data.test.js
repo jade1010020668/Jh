@@ -60,7 +60,8 @@ ok(!E.evaluateBets(fc, { bankroll: 1e6 }).recommended, 'sin cuotas del usuario n
 console.log(`    Nacional–Once Caldas → modelo ${fc.model.probs.map(p => (p * 100).toFixed(0)).join('/')} · mercado ${fc.market.x.map(p => (p * 100).toFixed(0)).join('/')} · final ${[fc.final.home, fc.final.draw, fc.final.away].map(p => (p * 100).toFixed(0)).join('/')} · D=${fc.D.toFixed(3)} · ${fc.quality.level}`);
 
 section('Fase, torneo anterior y copas');
-ok(D.detectPhase(cfg, { seasonSlug: 'clausura' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'fase regular terminada → fase final');
+ok(D.detectPhase(cfg, { seasonSlug: '' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'sin nombre de fase y con la fase regular terminada → fase final');
+ok(D.detectPhase(cfg, { seasonSlug: 'clausura' }, { pj: 19 }, { pj: 19 }, 20) === 'regular', 'última fecha de la fase regular (la fuente dice "clausura") → sigue siendo regular');
 ok(D.detectPhase(cfg, { seasonSlug: 'clausura-cuadrangulares' }, { pj: 18 }, { pj: 18 }, 20) === 'cuadrangular', 'slug de cuadrangulares');
 ok(D.detectPhase(cfg, { seasonSlug: 'clausura', note: 'Final - Ida' }, { pj: 19 }, { pj: 19 }, 20) === 'final', 'nota de final');
 ok(D.detectPhase(L.LEAGUES['eng.1'], { seasonSlug: 'x' }, { pj: 30 }, { pj: 30 }, 20) === 'regular', 'Europa siempre regular');
@@ -104,7 +105,13 @@ section('Fases con los nombres reales de la fuente');
   ok(D.detectPhase(cfg, fin, { pj: 19 }, { pj: 19 }, 20) === 'final', 'final real de la Liga BetPlay → fase "final"');
   ok(D.detectPhase(cfg, { seasonSlug: 'apertura---semifinals' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'semifinales → cuadrangular');
   ok(D.detectPhase(cfg, { seasonSlug: 'apertura---quarterfinals' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'cuartos → cuadrangular (no "final" por contener la palabra)');
-  ok(D.detectPhase(cfg, { seasonSlug: 'playoffs---finals' }, { pj: 19 }, { pj: 19 }, 20) === 'final', 'playoffs---finals → final');
+  ok(fin.series === 'Apertura - Finals' && fin.leg === 2, 'se leen la ronda y el número del partido (vuelta)');
+  ok(D.detectPhase(cfg, { seasonSlug: 'playoffs---finals' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', '"playoffs---finals" nombra toda la fase eliminatoria del Clausura 2026: no se toma por la final');
+  ok(D.detectPhase(cfg, { seasonSlug: 'playoffs---finals', series: 'Playoffs - Finals', note: '1st Leg' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'ni aunque la ronda se llame igual');
+  ok(D.detectPhase(cfg, { seasonSlug: 'playoffs---finals', series: 'Clausura - Finals' }, { pj: 19 }, { pj: 19 }, 20) === 'final' && D.detectPhase(cfg, { seasonSlug: 'playoffs---finals', note: 'Final - 2nd Leg' }, { pj: 19 }, { pj: 19 }, 20) === 'final', 'pero si la ronda o la nota dicen que es la final, sí');
+  ok(D.detectPhase(cfg, { seasonSlug: 'playoffs---finals', series: 'Playoffs - Quarterfinals' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'cuartos dentro de los playoffs');
+  const legIn = D.buildInput({ cfg, event: Object.assign({}, ev, { leg: 2 }), groups, core, prevCore, summary });
+  ok(legIn.dataNotes.some(n => /partido de vuelta/.test(n) && /no tiene en cuenta el resultado de la ida/.test(n)), 'en un partido de vuelta se avisa que el modelo no conoce el marcador de la ida');
   ok(D.detectPhase(cfg, { seasonSlug: 'clausura', note: 'Semifinal - Group A' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'nota de grupo semifinal → cuadrangular');
 }
 
