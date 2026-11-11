@@ -1,7 +1,7 @@
-// Equipos por liga — temporada vigente a julio de 2026.
-// Ligas domésticas: rosters 2026 (Colombia) y 2026-27 (Europa).
-// Competiciones continentales: se juegan por edición y el sorteo de la fase liga
-// 2026-27 aún no se realiza, por eso usan entrada de texto libre.
+// Equipos por liga. Rosters: temporada 2026 (Colombia) y 2026-27 (Europa).
+// REVISAR en cada cambio de temporada: Colombia en enero (ascensos/descensos de diciembre)
+// y Europa en agosto. Las competiciones continentales cambian de participantes en cada
+// edición, por eso usan entrada de texto libre.
 // En TODAS las ligas el selector ofrece además "✏️ Otro equipo…" para escribir
 // cualquier club; la búsqueda web valida y trae los datos del partido.
 const LEAGUES = {
@@ -158,23 +158,23 @@ const LEAGUES = {
     ]
   },
   "copa-libertadores": {
-    name: "Copa Libertadores (CONMEBOL) 2026",
+    name: "Copa Libertadores (CONMEBOL)",
     country: "Sudamérica",
-    note: "Edición 2026 en curso. Escribe los clubes participantes; la búsqueda web valida los datos del partido.",
+    note: "Los participantes cambian en cada edición: escribe los dos clubes; la búsqueda web valida los datos del partido.",
     freeTextOnly: true,
     teams: []
   },
   "champions-league": {
-    name: "UEFA Champions League 2026-27",
+    name: "UEFA Champions League",
     country: "Europa",
-    note: "El sorteo de la fase liga 2026-27 se realiza a finales de agosto de 2026. Escribe los equipos; la búsqueda web valida los datos.",
+    note: "Los participantes cambian en cada edición: escribe los dos clubes; la búsqueda web valida los datos del partido.",
     freeTextOnly: true,
     teams: []
   },
   "europa-league": {
-    name: "UEFA Europa League 2026-27",
+    name: "UEFA Europa League",
     country: "Europa",
-    note: "El sorteo de la fase liga 2026-27 se realiza a finales de agosto de 2026. Escribe los equipos; la búsqueda web valida los datos.",
+    note: "Los participantes cambian en cada edición: escribe los dos clubes; la búsqueda web valida los datos del partido.",
     freeTextOnly: true,
     teams: []
   }

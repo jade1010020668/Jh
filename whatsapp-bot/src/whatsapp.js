@@ -18,7 +18,7 @@ function splitMessage(text, max = 1500) {
   return chunks;
 }
 
-// Solo dígitos, con código de país. Ej: "573183938822".
+// Solo dígitos, con código de país. Ej: "57XXXXXXXXXX".
 function digits(n) { return String(n).replace(/[^\d]/g, ''); }
 
 // ===== Meta WhatsApp Cloud API =====
@@ -41,7 +41,11 @@ export function makeMetaSender({ token, phoneNumberId, to, apiVersion = 'v21.0' 
       });
       if (!resp.ok) {
         const detail = await resp.text().catch(() => '');
-        throw new Error(`Meta Cloud API ${resp.status}: ${detail}`);
+        // 131047 / 131026: Meta no deja escribir texto libre si el destinatario no ha escrito en las últimas 24 h
+        const hint = /131047|131026|re-?engagement|24 hours/i.test(detail)
+          ? ' → WhatsApp solo permite texto libre dentro de las 24 h siguientes a un mensaje TUYO a ese número: escríbele "hola" desde tu WhatsApp y reintenta (o usa una plantilla aprobada).'
+          : (resp.status === 401 || /190|expired/i.test(detail) ? ' → El token de Meta venció o es inválido: genera uno nuevo (los de prueba duran 24 h).' : '');
+        throw new Error(`Meta Cloud API ${resp.status}: ${detail}${hint}`);
       }
     }
     return chunks.length;

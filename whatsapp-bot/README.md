@@ -26,8 +26,8 @@ Envía a tu WhatsApp el pronóstico de cada partido **1 hora antes del pitazo in
    - un **número de prueba** (emisor),
    - un **Phone number ID** → ponlo en `META_PHONE_NUMBER_ID`,
    - un **token temporal** (24 h) → ponlo en `META_ACCESS_TOKEN` (para dejarlo fijo, genera un *System User token* permanente en Business Settings).
-3. En la sección **API Setup**, agrega tu número (`+573183938822`) como **destinatario de prueba** y verifícalo con el código que te llega por WhatsApp.
-4. En `.env`: `WHATSAPP_PROVIDER=meta`, `WHATSAPP_TO=573183938822`.
+3. En la sección **API Setup**, agrega tu número (`+57XXXXXXXXXX`) como **destinatario de prueba** y verifícalo con el código que te llega por WhatsApp.
+4. En `.env`: `WHATSAPP_PROVIDER=meta`, `WHATSAPP_TO=57XXXXXXXXXX`.
 5. Prueba: `npm run test-now -- colombia`. Si tu número está fuera de la ventana de 24 h, escríbele primero al número de prueba desde tu WhatsApp y reintenta.
 
 ## 🚀 Instalación
@@ -43,8 +43,8 @@ cp .env.example .env
 1. En `.env`: `WHATSAPP_PROVIDER=twilio`.
 2. En Twilio Console → **Messaging → Try it out → Send a WhatsApp message**.
 3. Verás un número (normalmente `+1 415 523 8886`) y un código tipo `join <palabra>`.
-4. Desde tu WhatsApp (`+57 318 393 8822`), envía ese `join <palabra>` a ese número.
-5. Pon ese número en `TWILIO_WHATSAPP_FROM`. `WHATSAPP_TO` puede ir como `573183938822`.
+4. Desde tu WhatsApp (`+57 XXX XXX XXXX`), envía ese `join <palabra>` a ese número.
+5. Pon ese número en `TWILIO_WHATSAPP_FROM`. `WHATSAPP_TO` puede ir como `57XXXXXXXXXX`.
 
 ## ▶️ Uso
 
@@ -85,7 +85,7 @@ Edita **`fixtures.json`**. Cada partido:
 | `ANTHROPIC_API_KEY` | Tu API key de Anthropic |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5` (rec.), `claude-opus-4-8` o `claude-haiku-4-5-20251001` |
 | `WHATSAPP_PROVIDER` | `meta` (recomendado) o `twilio` |
-| `WHATSAPP_TO` | Tu número, solo dígitos con país (`573183938822`) |
+| `WHATSAPP_TO` | Tu número, solo dígitos con país (`57XXXXXXXXXX`) |
 | `META_ACCESS_TOKEN` / `META_PHONE_NUMBER_ID` | Credenciales de Meta Cloud API (si provider=meta) |
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | Credenciales de Twilio (si provider=twilio) |
 | `LEAD_MINUTES` | Minutos antes del partido para enviar (60) |
