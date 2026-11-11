@@ -51,7 +51,8 @@ wait((async () => {
     const missing = ids.filter(id => !html.includes(`id="${id}"`));
     ok(ids.length > 30 && missing.length === 0, 'todo id usado en app.js existe en index.html (faltan: ' + missing.join(', ') + ')');
     for (const h of ['h1', 'h2']) for (const k of ['home', 'draw', 'away', 'over', 'under']) ok(html.includes(`id="${h}-${k}"`), `existe el campo ${h}-${k}`);
-    ok(/connect-src https:\/\/api\.anthropic\.com https:\/\/site\.api\.espn\.com https:\/\/sports\.core\.api\.espn\.com;/.test(html), 'la CSP permite solo Anthropic y ESPN');
+    ok(/connect-src https:\/\/api\.anthropic\.com https:\/\/site\.api\.espn\.com https:\/\/sports\.core\.api\.espn\.com;/.test(html), 'la CSP permite conectar solo a Anthropic y ESPN');
+    ok(/default-src 'none'; script-src 'self';/.test(html) && /frame-src https:\/\/app\.netlify\.com;/.test(html), 'scripts solo propios; el único marco permitido es la barra de vista previa de Netlify');
     ok(!/onclick=|onload=|<script>(?!<)/.test(html.replace(/<script src="[^"]+"><\/script>/g, '')), 'sin scripts ni manejadores en línea');
     ok(!/innerHTML\s*=(?!\s*renderMarkdown\()/.test(src), 'innerHTML solo recibe la salida del renderizador Markdown');
   }

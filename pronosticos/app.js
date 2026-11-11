@@ -234,7 +234,7 @@ function renderForecast() {
     return;
   }
   const poor = level === 'Pobre';
-  const P = poor ? pct5 : pct; // con datos pobres no se finge precisión
+  const P = poor ? (x) => '≈' + pct5(x) : pct; // con datos pobres no se finge precisión: se redondea al 5%
   const rows = [[ev.home.name, fc.final.home, 0], ['Empate', fc.final.draw, 1], [ev.away.name, fc.final.away, 2]];
   const probs = el('div', 'probs');
   for (const [name, p, i] of rows) {

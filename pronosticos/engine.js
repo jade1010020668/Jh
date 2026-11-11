@@ -416,7 +416,7 @@
     else final = gm.probs.slice();
     // Más de 2,5
     let Dou = null, wOu = 0, over, overSource;
-    if (mkt.over != null && hasM) { Dou = Math.abs(gm.over25 - mkt.over); wOu = modelWeight(P.wOver, Dou); over = blend([mkt.over, 1 - mkt.over], [gm.over25, 1 - gm.over25], wOu)[0]; overSource = 'mercado+modelo'; }
+    if (mkt.over != null && hasM) { Dou = Math.abs(gm.over25 - mkt.over); wOu = modelWeight(P.wOver, Dou); over = blend([mkt.over, 1 - mkt.over], [gm.over25, 1 - gm.over25], wOu)[0]; overSource = wOu > 0 ? 'mercado y modelo' : 'mercado'; }
     else if (mkt.over != null) { over = mkt.over; overSource = 'mercado'; }
     else if (hasM) {
       // Sin cuotas de goles: el modelo no ha demostrado habilidad en totales, así que se promedia
