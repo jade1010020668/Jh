@@ -2,7 +2,7 @@
 
 App web estática que calcula la probabilidad de cada resultado con **datos reales** y un **motor estadístico propio**. Funciona **gratis y sin registro**; la IA es un paso opcional. Enfocada en la **Liga BetPlay Dimayor**, con Premier League, LaLiga, Serie A, Bundesliga, Ligue 1 y las copas (Libertadores, Sudamericana, Champions, Europa League).
 
-En línea: **https://fabulous-unicorn-235c34.netlify.app/pronosticos/** (al fusionar el PR; antes, en la *deploy preview*).
+En línea: **https://fabulous-unicorn-235c34.netlify.app/pronosticos/** (se entra desde la portada del sitio).
 
 > **Léalo antes de apostar.** Ningún pronóstico es seguro: 70% significa que falla 3 de cada 10 veces. No está demostrado que esta app le gane a las casas de apuestas, y comprobarlo tomaría años de registro. Sirve para entender un partido y para no pagar de más por una cuota.
 
@@ -47,13 +47,14 @@ Los parámetros que siguen marcados `[M]` en `engine.js` (el peso del modelo fre
 
 ## Cuándo recomienda apostar (casi nunca)
 
-Todas estas condiciones a la vez: cuotas de **dos casas independientes** escritas por usted, **las dos** hace menos de 6 horas; calidad de datos Completa o Parcial; la cuota paga al menos **+3%** sobre el consenso de sus propias casas **y** sobre el pronóstico final (se toma el menor), pero no más de +10% (más suele ser un error de tecleo); el margen de cada casa es normal (al menos 3% en el 1X2) y los dos se parecen (una cuota mal copiada hacia arriba deja un margen anormalmente bajo); sus cuotas no contradicen a las de referencia del mercado (si lo hacen, casi siempre son de otro partido o están en otro orden); modelo y mercado no discrepan en más de 10 puntos; cuota ≤ 6. La recomendación se revisa sola cada minuto: desaparece cuando las cuotas envejecen o empieza el partido. Monto: Kelly 1/4 con tope del **1% de la banca**, redondeado hacia abajo a $1.000; una sola apuesta por partido. Nunca recomienda combinadas, marcador exacto ni "ambos anotan".
+Todas estas condiciones a la vez: cuotas de **dos casas independientes** escritas por usted, **todas** hace menos de 6 horas (cada cuota lleva su hora: corregir una sola no rejuvenece las demás); las tres del 1X2 escritas (con solo más/menos no hay con qué comprobar que estén bien copiadas); calidad de datos Completa o Parcial; la cuota paga al menos **+3%** sobre el consenso de sus propias casas **y** sobre el pronóstico final (se toma el menor), pero no más de +10% (más suele ser un error de tecleo); el margen de cada casa es normal (al menos 3% en el 1X2) y los dos se parecen (una cuota mal copiada hacia arriba deja un margen anormalmente bajo); sus cuotas no contradicen a las de referencia del mercado (si lo hacen, casi siempre son de otro partido o están en otro orden); modelo y mercado no discrepan en más de 10 puntos; cuota ≤ 6. La recomendación se revisa sola cada minuto: desaparece cuando las cuotas envejecen o empieza el partido. Monto: Kelly 1/4 con tope del **1% de la banca**, redondeado hacia abajo a $1.000; una sola apuesta por partido. Nunca recomienda combinadas, marcador exacto ni "ambos anotan".
 
 El valor que detecta viene de que **su casa paga más que las otras**, no de que la app sepa más que el mercado.
 
 ## Seguimiento honesto
 
 - Se guarda el último pronóstico visto hasta 5 minutos antes del partido; después ya no se modifica.
+- Lo que la app recomendó queda en el registro para poder marcar una apuesta ya hecha; si después dejó de recomendarlo, aparece como "ya no se recomienda".
 - Con menos de 100 partidos resueltos se muestra la lista y "todavía es ruido": no hay conteo de aciertos ni colores de ganancia.
 - En partidos con prórroga o penales cuenta el marcador de los **90 minutos**; si la fuente no permite saberlo, la app pide escribirlo.
 - Desde 100: aciertos del favorito junto a los que se esperaban, calibración y, si al menos 100 partidos tienen cuotas guardadas, diferencia de RPS frente al mercado con intervalo del 98% (bootstrap).

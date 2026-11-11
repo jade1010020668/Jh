@@ -218,7 +218,7 @@
     // Nombres reales de la fuente (2026): "clausura", "apertura---quarterfinals", "apertura---semifinals",
     // "apertura---finals" y, para TODA la fase eliminatoria del Clausura, "playoffs---finals".
     // 'cuadrangular' significa aquí "fase final que no es la final": cuadrangulares, cuartos o semifinales.
-    if (/cuadrang|semifinal|quarter|cuartos|octavos/.test(txt)) return 'cuadrangular';
+    if (/cuadrang|semi[\s-]*final|quarter|cuartos|octavos/.test(txt)) return 'cuadrangular'; // también "Semi-final" y "Semi Final"
     const rest = txt.replace(/play-?offs?[\s-]*finals?/g, 'playoffs'); // "Playoffs - Finals" nombra la fase entera, no la final
     if (/(^|[^a-z])final(s|es)?([^a-z]|$)/.test(rest)) return 'final';
     if (/playoff|knockout|eliminat/.test(rest)) return 'cuadrangular';
@@ -416,12 +416,18 @@
       const has = (g, id) => g.rows.some(r => r.id === id);
       const g = groups.find(x => has(x, event.home.id) && has(x, event.away.id)) || groups.find(x => has(x, event.home.id) || has(x, event.away.id)) || groups[0] || null;
       const year = (g && g.year) || event.seasonYear || null;
-      if (g && g.rows.length >= 10 && year && g.type) {
+      // ¿La fuente dice que el partido es de fase final (eliminatorias, cuadrangulares, final)?
+      const ko = /cuadrang|semi[\s-]*final|quarter|cuartos|octavos|(^|[^a-z])finals?([^a-z]|$)|playoff|knockout|eliminat/.test(`${event.seasonSlug || ''} ${event.series || ''}`.toLowerCase());
+      const pjOf = (id) => { const r = g && g.rows.find(x => x.id === id); return r ? r.pj : 0; };
+      // En fase final, una tabla general de un torneo que aún no se juega (todos con 0 partidos) no sirve
+      const unplayed = ko && !!g && pjOf(event.home.id) < 8 && pjOf(event.away.id) < 8;
+      if (g && g.rows.length >= 10 && year && g.type && !unplayed) {
         table = g;
         const c = await soft(fetchJson(urls.core(slug, year, g.type)));
         core = c ? parseCore(c) : null;
-      } else if (year) {
-        // Fase final: la tabla que llega es la del cuadrangular. Se busca hacia atrás la de la fase regular.
+      } else if (year && (ko || (g && g.rows.length < 10))) {
+        // Fase final: la fuente no da tabla, o da la del grupo de cuatro. Se busca hacia atrás la de la fase regular.
+        // (Si la tabla general simplemente falló en plena fase regular NO se busca: se tomaría la de otro torneo.)
         const from = g && g.type ? g.type - 1 : 6;
         for (let t = from; t >= 1 && !table; t--) {
           const c = await soft(fetchJson(urls.core(slug, year, t)));

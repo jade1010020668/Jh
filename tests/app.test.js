@@ -244,6 +244,50 @@ wait(async () => {
     late.get('renderTrack')();
     const row = late.elements['track-list'].children.find(c => c.textContent.includes('Atlético Nacional'));
     ok(row.textContent.includes('Marcar que aposté: Empate en Codere'), 'lo que se recomendó antes sigue disponible para marcar la apuesta');
+    ok(row.textContent.includes('ya no se recomienda'), 'pero avisando que la app ya no lo recomienda');
+    ok(JSON.parse(late.store.football_predictor_track_v3).find(r => r.id === 'col.1:401878029').rec.withdrawn === true, 'y así queda en el registro');
+    // Corregir UNA sola cuota no rejuvenece las demás: siguen siendo de hace 7 horas
+    late.elements['h2-draw'].value = late.elements['h2-draw'].value; fire(late.elements['h2-draw'], 'input');
+    late.elements['h1-draw'].value = late.elements['h1-draw'].value; fire(late.elements['h1-draw'], 'input');
+    await sleep(260);
+    ok(!late.get('state').bets.recommended && late.elements['value-box'].textContent.includes('más de 6 horas'), 'tocar solo el empate no hace pasar por recientes las otras cuotas (antes volvía a recomendar con cuotas de ayer)');
+    for (const id of ['h1-home', 'h1-draw', 'h1-away', 'h2-home', 'h2-draw', 'h2-away']) fire(late.elements[id], 'input');
+    await sleep(260);
+    ok(!!late.get('state').bets.recommended, 'al reescribir todas las cuotas, vuelve a evaluarse con normalidad');
+
+    // La app retira la recomendación sin que cambien las cuotas (se marca cancha neutral): el registro lo refleja
+    ok(!!S().bets.recommended, 'punto de partida: recomendación vigente');
+    m.elements.neutral.checked = true; fire(m.elements.neutral, 'change');
+    const afterNeutral = JSON.parse(m.store.football_predictor_track_v3).find(r => r.id === 'col.1:401878029');
+    if (!S().bets.recommended) ok(afterNeutral.rec && afterNeutral.rec.withdrawn === true, 'recomendación retirada por la app: en el seguimiento queda marcada "ya no se recomienda"');
+    else ok(afterNeutral.rec && !afterNeutral.rec.withdrawn, 'si sigue recomendada, no se marca como retirada');
+    m.elements.neutral.checked = false; fire(m.elements.neutral, 'change');
+    ok(S().bets.recommended && !JSON.parse(m.store.football_predictor_track_v3).find(r => r.id === 'col.1:401878029').rec.withdrawn, 'y al volver a recomendarse, se quita la marca');
+  }
+
+  section('Aviso de arranque: solo por fallos de la propia app');
+  {
+    const vm = require('vm');
+    const run = (ready) => {
+      const box = { hidden: true, textContent: '' }; const ls = {};
+      const win = { __appReady: !!ready, location: { origin: 'https://sitio.example' }, addEventListener: (t, f) => { (ls[t] = ls[t] || []).push(f); }, setTimeout: (f) => f() };
+      win.window = win; win.document = { getElementById: () => box };
+      vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'pronosticos', 'boot.js'), 'utf8'), win);
+      return { box, win, err: (e) => ls.error.forEach(f => f(e)), load: () => ls.load.forEach(f => f()) };
+    };
+    let b = run(false); b.err({ message: 'Uncaught TypeError: x', filename: 'chrome-extension://abc/inpage.js' });
+    ok(b.box.hidden === true, 'un error de una extensión del navegador no muestra "la app no pudo iniciar"');
+    b.err({ target: { tagName: 'SCRIPT', src: 'https://otro.example/x.js', getAttribute: () => 'https://otro.example/x.js' } });
+    ok(b.box.hidden === true, 'ni un archivo de otro sitio que no cargó');
+    b.err({ message: "SyntaxError: Unexpected token '.'", filename: 'https://sitio.example/pronosticos/app.js' });
+    ok(b.box.hidden === false && b.box.textContent.includes('Unexpected token'), 'un error de la propia app sí se muestra, con su detalle');
+    b = run(false); b.err({ target: { tagName: 'SCRIPT', src: 'https://sitio.example/pronosticos/data.js', getAttribute: () => 'data.js' } });
+    ok(b.box.hidden === false && b.box.textContent.includes('data.js'), 'un archivo propio que no cargó: se dice cuál');
+    b = run(true); b.err({ message: 'tarde', filename: 'https://sitio.example/pronosticos/app.js' }); b.load();
+    ok(b.box.hidden === true, 'con la app ya arrancada no se muestra nada');
+    b = run(false); b.load();
+    ok(b.box.hidden === false, 'si la app nunca termina de arrancar, se avisa');
+    ok(/__appReady = true;[^\n]*\n[^\n]*boot-error[^\n]*hidden = true/.test(fs.readFileSync(path.join(__dirname, '..', 'pronosticos', 'app.js'), 'utf8')), 'al arrancar, la app quita el aviso si algo ajeno lo había mostrado');
   }
 
   section('Seguimiento: sin conclusiones con pocos partidos');
