@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.anthropic.com https://site.api.espn.com https://sports.core.api.espn.com; img-src https: data:; frame-src https://app.netlify.com; base-uri 'none'; form-action 'none'" />
+  <meta name="description" content="Pronósticos de fútbol con modelo estadístico y cuotas del mercado. Liga BetPlay y grandes ligas. Mide sus propios aciertos." />
+  <meta property="og:title" content="Pronósticos de Fútbol" />
+  <meta property="og:description" content="Probabilidades calculadas con datos reales, cuotas sin margen y un modelo de goles. Liga BetPlay y grandes ligas." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BD%3C/text%3E%3C/svg%3E" />
+  <title>Pronósticos de Fútbol</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg-1: #0a0e1a; --bg-2: #111827; --card: #1a2236; --card-2: #232d47;
+      --accent: #22c55e; --accent-2: #16a34a; --danger: #ef4444; --warn: #f59e0b; --info: #38bdf8;
+      --text: #e5e7eb; --text-dim: #9ca3af; --border: rgba(255,255,255,0.08);
+    }
+    body { min-height: 100vh; background: radial-gradient(ellipse at top, #1e293b 0%, var(--bg-1) 60%); font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; color: var(--text); padding: 24px 16px 80px; }
+    .container { max-width: 960px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 24px; }
+    header .logo { font-size: 38px; margin-bottom: 8px; }
+    header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 6px; background: linear-gradient(135deg, #22c55e, #06b6d4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    header p { color: var(--text-dim); font-size: 14px; max-width: 660px; margin: 0 auto; line-height: 1.5; }
+
+    .config-bar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .config-bar .home-link { margin-right: auto; text-decoration: none; }
+    #boot-error { background: rgba(239,68,68,0.12); border: 1px solid var(--danger); color: #fecaca; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
+    #match-title:focus { outline: none; }
+    .icon-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 13px; cursor: pointer; transition: background 0.15s; }
+    .icon-btn:hover { background: var(--card-2); }
+    .icon-btn:focus-visible, .chip:focus-visible, .btn-primary:focus-visible, .btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .icon-btn:disabled, .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+    .card h2 { font-size: 17px; margin-bottom: 12px; }
+    [hidden] { display: none !important; }
+
+    label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+    label .hint { text-transform: none; letter-spacing: 0; font-weight: 400; }
+    select, input[type="text"], input[type="password"], input[type="number"] { width: 100%; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; font-size: 14px; font-family: inherit; }
+    select:focus, input:focus { outline: none; border-color: var(--accent); }
+    select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .chip { background: var(--bg-2); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 9px 12px; font-size: 13px; cursor: pointer; text-align: left; transition: border-color 0.15s, background 0.15s; }
+    .chip:hover { border-color: var(--accent); background: var(--card-2); }
+    .chip.active { border-color: var(--accent); background: rgba(34,197,94,0.12); }
+    .chip small { color: var(--text-dim); display: block; margin-top: 2px; font-size: 11px; }
+    .muted { color: var(--text-dim); }
+    .small { font-size: 12px; line-height: 1.45; }
+
+    .houses { display: grid; gap: 14px; margin-top: 6px; }
+    .house { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg-2); }
+    .odds-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+    @media (min-width: 620px) { .odds-grid { grid-template-columns: repeat(5, 1fr); } }
+    .odds-grid label, .house label { font-size: 10.5px; }
+    .odds-grid > div { display: flex; flex-direction: column; justify-content: flex-end; }
+    .odds-grid input { padding: 9px 10px; }
+    input.bad { border-color: var(--danger); }
+    .row-2 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 620px) { .row-2 { grid-template-columns: 1fr 1fr; } }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text); margin-top: 12px; }
+    .check input { width: auto; }
+
+    .btn-primary { background: linear-gradient(135deg, #15803d, #166534); color: white; border: none; border-radius: 10px; padding: 12px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-secondary { background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 14px; cursor: pointer; }
+
+    /* Pegado arriba: el aviso (y el botón Cancelar) se ve aunque se haya bajado por la página */
+    #status { display: none; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; font-size: 14px; position: sticky; top: 8px; z-index: 20; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+    #status.loading { display: block; background: #0c2733; border: 1px solid rgba(6,182,212,0.5); color: #67e8f9; }
+    #status.error { display: block; background: #35161a; border: 1px solid var(--danger); color: #fecaca; }
+    #status.success { display: block; background: #10301f; border: 1px solid var(--accent); color: #86efac; }
+    .status-row + .status-row { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .check input:disabled + span, .check:has(input:disabled) { opacity: 0.55; }
+    .status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .status-cancel { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: currentColor; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+    /* Pronóstico */
+    .match-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .match-head h2 { font-size: 20px; margin: 0; overflow-wrap: anywhere; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .badge.completa { background: rgba(34,197,94,0.18); color: #86efac; }
+    .badge.parcial { background: rgba(245,158,11,0.18); color: #fde68a; }
+    .badge.pobre, .badge.sin { background: rgba(239,68,68,0.16); color: #fca5a5; }
+    .probs { display: grid; gap: 10px; margin: 6px 0 14px; }
+    .prob-row { display: grid; grid-template-columns: minmax(90px, 1.2fr) 3fr auto; gap: 10px; align-items: center; }
+    .prob-row .name { font-size: 14px; overflow-wrap: anywhere; }
+    .bar { height: 12px; border-radius: 999px; background: var(--bg-2); overflow: hidden; }
+    .bar > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .prob-row .val { font-size: 18px; font-weight: 700; min-width: 54px; text-align: right; }
+    .prob-row .sub { grid-column: 2 / 4; font-size: 11.5px; color: var(--text-dim); margin-top: -6px; }
+    .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media (min-width: 620px) { .tiles { grid-template-columns: repeat(4, 1fr); } }
+    .tile { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .tile .k { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; }
+    .tile .v { font-size: 18px; font-weight: 700; margin-top: 2px; }
+    .tile .v.pos { color: #86efac; } .tile .v.neg { color: #fca5a5; }
+    .tile .s { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .note-box { border-radius: 12px; padding: 14px 16px; margin: 14px 0; border: 1px solid var(--border); background: var(--bg-2); font-size: 13.5px; line-height: 1.5; color: #d1d5db; }
+    .note-box.good { border-color: var(--accent); background: rgba(34,197,94,0.08); }
+    .note-box.bad { border-color: var(--warn); background: rgba(245,158,11,0.08); }
+    .note-box h3 { font-size: 15px; margin-bottom: 6px; color: var(--text); }
+    .note-box p + p { margin-top: 6px; }
+    .tbl-wrap { overflow-x: auto; margin-top: 10px; }
+    table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .tbl th, .tbl td { padding: 7px 9px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+    .tbl th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .tbl td.wrap { white-space: normal; min-width: 180px; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .tag.good { background: rgba(34,197,94,0.18); color: #86efac; }
+    .tag.mid { background: rgba(245,158,11,0.18); color: #fde68a; }
+    .tag.bad { background: rgba(239,68,68,0.16); color: #fca5a5; }
+    details.fold { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-2); }
+    details.fold summary { cursor: pointer; padding: 11px 14px; font-size: 13.5px; font-weight: 600; list-style: none; }
+    details.fold summary::-webkit-details-marker { display: none; }
+    details.fold summary::before { content: '▸ '; color: var(--accent); }
+    details.fold[open] summary::before { content: '▾ '; }
+    details.fold .fold-body { padding: 0 14px 14px; font-size: 13px; line-height: 1.55; color: #d1d5db; }
+    .fold-body ul { padding-left: 20px; }
+    .fold-body li { margin-bottom: 4px; }
+    .fineprint { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; margin-top: 12px; }
+    .fineprint li { margin-left: 18px; margin-bottom: 3px; }
+
+    .result-content { line-height: 1.65; font-size: 14.5px; margin-top: 12px; }
+    .result-content h2 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); color: var(--accent); }
+    .result-content h2:first-child { margin-top: 0; }
+    .result-content h3 { font-size: 14.5px; margin-top: 14px; margin-bottom: 6px; }
+    .result-content p { margin-bottom: 10px; color: #d1d5db; }
+    .result-content ul, .result-content ol { margin-bottom: 10px; padding-left: 24px; color: #d1d5db; }
+    .result-content li { margin-bottom: 4px; }
+    .result-content strong { color: var(--text); font-weight: 600; }
+    .result-content code { background: var(--bg-2); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .result-content a { color: var(--info); overflow-wrap: anywhere; }
+    .result-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .usage-line { font-size: 12px; color: var(--text-dim); margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .disclaimer { background: rgba(245,158,11,0.08); border: 1px solid var(--warn); border-radius: 10px; padding: 14px 16px; margin-top: 16px; font-size: 13px; color: #fde68a; line-height: 1.5; }
+    .disclaimer strong { color: #fbbf24; }
+
+    /* Seguimiento */
+    .track-item { padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+    .track-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .track-top .meta { font-size: 13px; }
+    .track-top .meta small { color: var(--text-dim); display: block; margin-top: 2px; }
+    .track-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .track-actions input { width: 54px; padding: 6px 8px; font-size: 13px; text-align: center; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+
+    details.guide summary { cursor: pointer; font-weight: 600; font-size: 15px; list-style: none; }
+    details.guide summary::-webkit-details-marker { display: none; }
+    details.guide summary::before { content: '▸ '; color: var(--accent); }
+    details.guide[open] summary::before { content: '▾ '; }
+    .guide-body { margin-top: 14px; font-size: 14px; line-height: 1.6; color: #d1d5db; }
+    .guide-body h4 { color: var(--text); font-size: 14px; margin: 14px 0 6px; }
+    .guide-body ul { padding-left: 22px; }
+    .guide-body li { margin-bottom: 6px; }
+
+    dialog { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; max-width: 480px; width: calc(100% - 32px); color: var(--text); margin: auto; }
+    dialog::backdrop { background: rgba(0,0,0,0.7); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+    dialog h2 { font-size: 18px; margin-bottom: 8px; }
+    dialog p { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+    .help-link { color: var(--info); font-size: 12px; display: inline-block; margin-top: 4px; }
+    .modal-footer { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .modal-footer .btn-primary, .modal-footer .btn-secondary { flex: 1; min-width: 120px; }
+    .field { margin-bottom: 14px; }
+    code { background: var(--bg-2); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    footer { text-align: center; margin-top: 40px; color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo" aria-hidden="true">⚽</div>
+      <h1>Pronósticos de Fútbol</h1>
+      <p>Probabilidades calculadas con datos reales: la tabla y los resultados de cada equipo, un modelo de goles y las cuotas de las casas sin su margen. Gratis y sin registro. La app guarda cada pronóstico y mide sus propios aciertos.</p>
+    </header>
+
+    <div id="boot-error" role="alert" hidden></div>
+    <noscript><div class="disclaimer" style="margin-bottom:16px;">Esta app necesita JavaScript. Actívelo en su navegador o ábrala en Chrome o Safari.</div></noscript>
+
+    <div class="config-bar">
+      <a class="icon-btn home-link" href="../">← Inicio</a>
+      <button class="icon-btn" id="btn-track">📈 Seguimiento</button>
+      <button class="icon-btn" id="btn-config">⚙️ IA (opcional)</button>
+    </div>
+
+    <div class="card">
+      <label for="league">Liga / competición</label>
+      <select id="league"></select>
+      <p class="small muted" id="fixtures-hint" style="margin-top:10px;">Elija una liga para ver los próximos partidos.</p>
+      <div class="chips" id="fixtures-box"></div>
+    </div>
+
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <div class="card" id="match-card" hidden>
+      <div class="match-head">
+        <div>
+          <h2 id="match-title" tabindex="-1">—</h2>
+          <div class="small muted" id="match-sub"></div>
+        </div>
+        <span class="badge" id="quality-badge"></span>
+      </div>
+
+      <div id="forecast-box"></div>
+      <div class="toolbar" id="share-bar" hidden>
+        <button class="icon-btn" id="btn-copy">📋 Copiar pronóstico</button>
+        <button class="icon-btn" id="btn-share">📱 Compartir por WhatsApp</button>
+      </div>
+
+      <details class="fold" id="odds-fold" open>
+        <summary>💰 Mis cuotas y mi banca — para saber si alguna apuesta vale la pena</summary>
+        <div class="fold-body">
+          <p class="small muted" style="margin-bottom:10px;">Copie las cuotas <strong>decimales</strong> de <strong>dos casas distintas</strong> donde usted pueda apostar. Con dos casas la app puede comparar precios; con una sola no hay forma de saber si la cuota es buena. Escriba las tres del 1X2 (y las dos del más/menos si quiere evaluarlo).</p>
+          <div class="houses">
+            <div class="house">
+              <label for="h1-name">Casa 1</label>
+              <select id="h1-name"></select>
+              <div class="odds-grid">
+                <div><label for="h1-home">Gana local (1)</label><input type="text" id="h1-home" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h1-draw">Empate (X)</label><input type="text" id="h1-draw" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h1-away">Gana visitante (2)</label><input type="text" id="h1-away" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h1-over">Más de 2,5</label><input type="text" id="h1-over" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h1-under">Menos de 2,5</label><input type="text" id="h1-under" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+              </div>
+            </div>
+            <div class="house">
+              <label for="h2-name">Casa 2</label>
+              <select id="h2-name"></select>
+              <div class="odds-grid">
+                <div><label for="h2-home">Gana local (1)</label><input type="text" id="h2-home" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h2-draw">Empate (X)</label><input type="text" id="h2-draw" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h2-away">Gana visitante (2)</label><input type="text" id="h2-away" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h2-over">Más de 2,5</label><input type="text" id="h2-over" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+                <div><label for="h2-under">Menos de 2,5</label><input type="text" id="h2-under" inputmode="decimal" autocomplete="off" placeholder="0.00" /></div>
+              </div>
+            </div>
+          </div>
+          <div class="row-2" style="margin-top:12px;">
+            <div><label for="bankroll">Mi banca total (COP) <span class="hint">— dinero que puedo perder sin problema</span></label><input type="text" id="bankroll" inputmode="numeric" autocomplete="off" placeholder="ej. 500000" /><p class="small muted" id="bank-hint" style="margin-top:6px;" aria-live="polite"></p></div>
+            <div><label class="check" for="neutral"><input type="checkbox" id="neutral" /> El partido se juega en cancha neutral</label></div>
+          </div>
+        </div>
+      </details>
+
+      <div id="value-box"></div>
+
+      <details class="fold" id="data-fold">
+        <summary>🔎 Datos usados en este pronóstico</summary>
+        <div class="fold-body" id="data-box"></div>
+      </details>
+
+      <details class="fold" id="ai-fold">
+        <summary>🧠 Contexto con IA (opcional): bajas, rotaciones y noticias</summary>
+        <div class="fold-body">
+          <p class="small muted">El pronóstico de arriba no necesita IA. Este paso busca en la web bajas confirmadas, rotaciones anunciadas y noticias del partido, y ajusta ligeramente los goles esperados (máximo ±10%) solo con lo que tenga una fuente comprobable. Requiere su propia API key de Anthropic y cuesta unos centavos de dólar por consulta.</p>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-primary" id="btn-ai">🧠 Analizar contexto con IA</button>
+          </div>
+          <div id="context-box"></div>
+          <div class="result-content" id="result"></div>
+          <div class="usage-line" id="usage" hidden></div>
+        </div>
+      </details>
+
+      <div class="disclaimer">
+        <strong>⚠️ Léalo antes de apostar:</strong> ningún pronóstico es seguro: 70% significa que falla 3 de cada 10 veces. No está demostrado que esta app le gane a las casas de apuestas, y comprobarlo tomaría años de registro. Úsela para entender el partido y para no pagar de más por una cuota, nunca como garantía. Apueste solo lo que pueda permitirse perder. Si el juego se le vuelve un problema, busque ayuda.
+      </div>
+    </div>
+
+    <div class="card" id="track-card" hidden>
+      <h2>📈 Seguimiento: ¿qué tan bien pronostica la app?</h2>
+      <div class="tiles" id="track-tiles"></div>
+      <div class="toolbar">
+        <button class="icon-btn" id="btn-refresh-results">🔄 Buscar resultados de los partidos ya jugados</button>
+        <button class="icon-btn" id="btn-export">⬇️ Exportar</button>
+        <button class="icon-btn" id="btn-clear-track">🗑 Borrar todo</button>
+      </div>
+      <div id="track-verdict"></div>
+      <div id="track-list"></div>
+    </div>
+
+    <details class="card guide" id="guide">
+      <summary>📚 Cómo funciona y cómo usarla sin engañarse</summary>
+      <div class="guide-body">
+        <h4>1. De dónde sale cada número</h4>
+        <ul>
+          <li><strong>Mercado:</strong> las cuotas de las casas, quitándoles su margen. Es el mejor pronóstico público que existe: miles de personas y modelos profesionales ya pusieron dinero ahí.</li>
+          <li><strong>Modelo:</strong> un modelo de goles (Poisson con corrección de Dixon-Coles) que calcula cuánto ataca y cuánto defiende cada equipo con sus goles del torneo actual, del torneo anterior y de sus últimos partidos, siempre "encogido" hacia el promedio para no creerle demasiado a pocas fechas.</li>
+          <li><strong>Pronóstico final:</strong> sobre todo el mercado, con un ajuste pequeño del modelo (máximo 20%), y solo si no se contradicen. Si el modelo se aleja más de 10 puntos, manda el mercado: casi siempre al modelo le falta una noticia (rotación, bajas).</li>
+        </ul>
+        <h4>2. Qué tan bien pronostica (medido, no prometido)</h4>
+        <p>El modelo se probó con <strong>1.494 partidos reales</strong> de la Liga BetPlay (2023 a 2026): en cada fecha pronosticó usando solo lo ocurrido antes y luego se comparó con el resultado.</p>
+        <ul>
+          <li><strong>Es mejor que no saber nada:</strong> su error (RPS 0,201) es claramente menor que el de un pronóstico fijo de 47/30/23 (0,214), también en los torneos que no se usaron para ajustarlo.</li>
+          <li><strong>Sus porcentajes son razonables:</strong> en promedio pronosticó 48/29/23 y ocurrió 47/30/23. Por tramos, en 2025-26 lo ocurrido quedó entre 1 y 7 puntos de lo pronosticado (por ejemplo, dijo 52% y ocurrió 46%; dijo 67% y ocurrió 69%).</li>
+          <li><strong>No hace magia:</strong> su favorito acertó 48 de cada 100 partidos. Apostar siempre al local acierta 47. El fútbol colombiano es muy parejo.</li>
+          <li><strong>En goles no sabe más que el promedio:</strong> para "más/menos de 2,5" el modelo no superó al promedio de la liga, así que ahí la app se fía solo de las cuotas.</li>
+          <li><strong>No se pudo comparar contra las casas</strong> porque no hay un historial público de cuotas. Lo esperable es que las casas sean algo mejores que el modelo: por eso el pronóstico final se apoya sobre todo en ellas.</li>
+        </ul>
+        <h4>3. "Calidad de los datos" no es "seguridad del resultado"</h4>
+        <p>Completa, Parcial o Pobre dice qué tan bien respaldado está el número, no qué tan probable es acertar. Un 60% con calidad Completa sigue fallando 4 de cada 10 veces.</p>
+        <h4>4. Cuándo la app dice "apueste"</h4>
+        <p>Casi nunca, y es a propósito. Solo cuando usted escribe las cuotas de dos casas independientes, recién copiadas, y una de ellas paga claramente más que el consenso. Si los números no cuadran (un margen raro, cuotas que no se parecen a las del mercado), la app supone un error al copiar y no recomienda nada. Ese valor viene de que <em>su casa paga más que las otras</em>, no de que la app sepa más que el mercado. El monto sugerido nunca pasa del 1% de su banca y es una sola apuesta por partido.</p>
+        <h4>5. Lo que la app no hace</h4>
+        <ul>
+          <li>No recomienda combinadas, ni marcador exacto, ni "ambos anotan": son mercados con más margen y más varianza.</li>
+          <li>No adivina rotaciones ni lesiones por sí sola. Para eso está el paso opcional de IA, que solo usa lo que encuentre con fuente.</li>
+          <li>No promete ganancias. Un apostador muy bueno gana 2–5% a largo plazo; la mayoría pierde.</li>
+        </ul>
+        <h4>6. Mídala usted mismo</h4>
+        <p>Cada pronóstico queda guardado. En <strong>Seguimiento</strong> la app busca el marcador real y compara su acierto contra el del mercado. Con menos de 100 partidos, cualquier racha es ruido: por eso el conteo de aciertos se muestra solo desde 100 partidos.</p>
+      </div>
+    </details>
+
+    <footer>
+      Datos de partidos y cuotas de referencia: ESPN (API pública, no oficial). Análisis opcional: Claude (Anthropic).<br />
+      Herramienta de análisis, no una garantía · Juegue con responsabilidad
+    </footer>
+  </div>
+
+  <dialog id="modal" aria-labelledby="modal-title">
+    <form method="dialog" id="config-form">
+      <h2 id="modal-title">Análisis con IA (opcional)</h2>
+      <p>El pronóstico estadístico funciona sin esto. La API key solo se usa para el paso de "contexto con IA", se guarda únicamente en este navegador (<code>localStorage</code>) y se envía solo a Anthropic.</p>
+      <div class="field">
+        <label for="api-key">Anthropic API key</label>
+        <input type="password" id="api-key" name="api-key" placeholder="sk-ant-..." autocomplete="new-password" spellcheck="false" />
+        <a class="help-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">¿De dónde la saco? →</a>
+        <p id="config-error" role="alert" style="color:#fca5a5;font-size:12px;margin-top:8px;" hidden></p>
+      </div>
+      <div class="field">
+        <label for="model">Modelo</label>
+        <select id="model" name="model">
+          <option value="claude-opus-5-5">Claude Opus 5.5 (recomendado, el más riguroso)</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (cuesta la mitad)</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 (muy económico, menos profundo)</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="btn-delete-key">🗑 Borrar clave</button>
+        <button type="button" class="btn-secondary" id="btn-cancel">Cancelar</button>
+        <button type="submit" class="btn-primary" id="btn-save">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="boot.js"></script>
+  <script src="leagues.js"></script>
+  <script src="engine.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
