@@ -7,7 +7,7 @@ const els = {
   status: $('status'),
   matchCard: $('match-card'), matchTitle: $('match-title'), matchSub: $('match-sub'), qualityBadge: $('quality-badge'),
   forecastBox: $('forecast-box'), shareBar: $('share-bar'), btnCopy: $('btn-copy'), btnShare: $('btn-share'),
-  h1Name: $('h1-name'), h2Name: $('h2-name'), bankroll: $('bankroll'), neutral: $('neutral'),
+  h1Name: $('h1-name'), h2Name: $('h2-name'), bankroll: $('bankroll'), bankHint: $('bank-hint'), neutral: $('neutral'),
   valueBox: $('value-box'), dataBox: $('data-box'),
   btnAi: $('btn-ai'), contextBox: $('context-box'), result: $('result'), usage: $('usage'),
   btnTrack: $('btn-track'), trackCard: $('track-card'), trackTiles: $('track-tiles'), trackVerdict: $('track-verdict'), trackList: $('track-list'),
@@ -29,7 +29,7 @@ const FREEZE_BEFORE_MS = 5 * 60e3;   // el pronóstico que cuenta es el último 
 const RESULT_AFTER_MS = 110 * 60e3;  // se busca el marcador desde 110 min después del inicio
 
 const state = {
-  slug: '', fixtures: [], event: null, parts: null, input: null, fc: null, bets: null,
+  slug: '', fixtures: [], event: null, parts: null, input: null, fc: null, fcBase: null, bets: null,
   context: [], llm1x2: null, aiMarkdown: '',
   oddsAt: { h1: null, h2: null },
   loadToken: 0, aiController: null, aiToken: 0
@@ -38,7 +38,23 @@ const state = {
 // ===== Utilidades =====
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 const pct = (x) => Math.round(x * 100) + '%';
-const pct5 = (x) => (Math.round(x * 20) * 5) + '%';
+// Con datos pobres no se finge precisión: se redondea al 5% y nunca se escribe 0% ni 100%
+const pct5 = (x) => { const v = Math.round(x * 20) * 5; return v < 5 ? 'menos de 5%' : v > 95 ? 'más de 95%' : '≈' + v + '%'; };
+const tenthText = (n) => (n <= 0 ? 'menos de 1 de cada 10' : n >= 10 ? 'más de 9 de cada 10' : `${n} de cada 10`);
+// Cuotas decimales: se aceptan "2,35" y "2.35"
+function parseOdd(txt) {
+  const t = String(txt == null ? '' : txt).replace(/\s/g, '').replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const v = parseFloat(t);
+  return v > 1 ? v : null;
+}
+// Pesos: "500.000", "500,000", "$ 1.500.000" y "500000" son lo mismo (los puntos y comas son de miles)
+function parseMoney(txt) {
+  let t = String(txt == null ? '' : txt).replace(/[^\d.,]/g, '');
+  if (!/^\d{1,3}([.,]\d{3})+$/.test(t)) t = t.replace(/[.,]\d{1,2}$/, ''); // centavos, si los escriben
+  const v = parseInt(t.replace(/[.,]/g, ''), 10);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
 const signed = (x) => (x >= 0 ? '+' : '−') + Math.abs(x * 100).toFixed(1).replace('.', ',') + '%';
 const cop = (n) => (n < 0 ? '−$' : '$') + Math.abs(Math.round(n)).toLocaleString('es-CO');
 const TZ = 'America/Bogota';
@@ -52,22 +68,33 @@ function load(key, fallback) { try { const v = JSON.parse(localStorage.getItem(k
 function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } }
 
 // ===== Mensajes de estado =====
-let statusTimer = null;
-function showStatus(msg, type = 'loading', { autoHide, onCancel } = {}) {
-  clearTimeout(statusTimer);
-  els.status.className = type;
-  els.status.textContent = '';
-  els.status.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+// "sticky" es el aviso de una tarea larga en curso (la IA, con su botón Cancelar): un aviso breve
+// se muestra encima, pero no lo quita.
+let statusTimer = null, sticky = null;
+function statusRow(msg, type, onCancel) {
   const row = el('div', 'status-row');
   const left = el('span');
   if (type === 'loading') { const sp = el('span', 'spinner'); sp.setAttribute('aria-hidden', 'true'); left.appendChild(sp); }
   left.appendChild(document.createTextNode(msg));
   row.appendChild(left);
-  if (onCancel) { const b = el('button', 'status-cancel', 'Cancelar'); b.addEventListener('click', onCancel); row.appendChild(b); }
-  els.status.appendChild(row);
+  if (onCancel) { const b = el('button', 'status-cancel', 'Cancelar'); b.type = 'button'; b.addEventListener('click', onCancel); row.appendChild(b); }
+  return row;
+}
+function showStatus(msg, type = 'loading', { autoHide, onCancel, keep } = {}) {
+  clearTimeout(statusTimer);
+  if (keep) sticky = { msg, onCancel };
+  els.status.className = type;
+  els.status.textContent = '';
+  els.status.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+  els.status.appendChild(statusRow(msg, type, onCancel));
+  if (sticky && !keep) els.status.appendChild(statusRow(sticky.msg, 'loading', sticky.onCancel));
   if (autoHide) statusTimer = setTimeout(hideStatus, autoHide);
 }
-function hideStatus() { clearTimeout(statusTimer); els.status.className = ''; els.status.textContent = ''; }
+function hideStatus() {
+  clearTimeout(statusTimer);
+  if (sticky) { showStatus(sticky.msg, 'loading', { onCancel: sticky.onCancel, keep: true }); return; }
+  els.status.className = ''; els.status.textContent = '';
+}
 
 // ===== Configuración de la IA (opcional) =====
 const DEFAULT_MODEL = 'claude-opus-5-5';
@@ -113,6 +140,7 @@ function populateSelectors() {
   els.h1Name.value = (HOUSES.includes(bank.h1) || bank.h1 === OTHER_A) ? bank.h1 : 'Wplay';
   els.h2Name.value = (HOUSES.includes(bank.h2) || bank.h2 === OTHER_B) ? bank.h2 : 'Codere';
   if (bank.bankroll) els.bankroll.value = bank.bankroll;
+  paintBank();
   els.league.value = LEAGUES[bank.slug] ? bank.slug : 'col.1';
 }
 function saveBank() { save(BANK_KEY, { h1: els.h1Name.value, h2: els.h2Name.value, bankroll: els.bankroll.value, slug: els.league.value }); }
@@ -122,6 +150,7 @@ async function loadFixturesUI() {
   state.slug = slug;
   const token = ++state.loadToken;
   cancelAI();
+  hideStatus(); // el aviso de la liga anterior ya no aplica
   state.fixtures = []; state.event = null;
   els.fixturesBox.textContent = '';
   els.matchCard.hidden = true;
@@ -140,13 +169,20 @@ async function loadFixturesUI() {
     els.fixturesHint.appendChild(b);
   }
 }
+function markFixture() {
+  for (const chip of els.fixturesBox.children) {
+    const on = !!state.event && chip.dataset && chip.dataset.id === state.event.id;
+    chip.className = 'chip' + (on ? ' active' : ''); chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+}
 function renderFixtures() {
   els.fixturesBox.textContent = '';
   if (!state.fixtures.length) { els.fixturesHint.textContent = `No hay partidos programados en los próximos ${FIXTURE_DAYS} días para esta competición.`; return; }
   els.fixturesHint.textContent = 'Próximos partidos (hora de Colombia). Toque uno para ver el pronóstico.';
   for (const ev of state.fixtures) {
-    const chip = el('button', 'chip' + (state.event && state.event.id === ev.id ? ' active' : ''), `${ev.home.name} vs ${ev.away.name}`);
-    chip.type = 'button';
+    const on = !!state.event && state.event.id === ev.id;
+    const chip = el('button', 'chip' + (on ? ' active' : ''), `${ev.home.name} vs ${ev.away.name}`);
+    chip.type = 'button'; chip.dataset.id = ev.id; chip.setAttribute('aria-pressed', on ? 'true' : 'false');
     chip.appendChild(el('small', null, fmtDateTime(ev.date)));
     chip.addEventListener('click', () => selectEvent(ev));
     els.fixturesBox.appendChild(chip);
@@ -156,17 +192,40 @@ els.league.addEventListener('change', loadFixturesUI);
 
 // ===== Partido =====
 function clearOdds() {
-  for (const h of ['h1', 'h2']) { for (const k of ODD_KEYS) oddInput(h, k).value = ''; state.oddsAt[h] = null; }
+  for (const h of ['h1', 'h2']) { for (const k of ODD_KEYS) { const i = oddInput(h, k); i.value = ''; i.classList.remove('bad'); } state.oddsAt[h] = null; }
+}
+// Las cuotas escritas se guardan con el pronóstico: al volver al partido reaparecen con su hora.
+function oddsSnapshot() {
+  const out = {}; let any = false;
+  for (const [h, sel] of [['h1', els.h1Name], ['h2', els.h2Name]]) {
+    const x = { name: sel.value, at: state.oddsAt[h] || null }; let has = false;
+    for (const k of ODD_KEYS) { const v = parseOdd(oddInput(h, k).value); if (v) { x[k] = v; has = true; } }
+    if (has) { out[h] = x; any = true; }
+  }
+  return any ? out : null;
+}
+const oddsValues = (o) => JSON.stringify(['h1', 'h2'].map(h => (o && o[h] ? [o[h].name].concat(ODD_KEYS.map(k => o[h][k] || 0)) : null)));
+function restoreOdds(ev) {
+  clearOdds();
+  const saved = loadTrack().find(r => r.id === `${state.slug}:${ev.id}`);
+  const o = saved && saved.odds;
+  if (!o) return;
+  for (const [h, sel] of [['h1', els.h1Name], ['h2', els.h2Name]]) {
+    const x = o[h]; if (!x) continue;
+    if (HOUSES.includes(x.name) || x.name === OTHER_A || x.name === OTHER_B) sel.value = x.name;
+    for (const k of ODD_KEYS) if (x[k]) oddInput(h, k).value = String(x[k]);
+    state.oddsAt[h] = x.at || null;
+  }
 }
 async function selectEvent(ev) {
   cancelAI();
   const token = ++state.loadToken;
-  state.event = ev; state.parts = null; state.input = null; state.fc = null; state.bets = null;
+  state.event = ev; state.parts = null; state.input = null; state.fc = null; state.fcBase = null; state.bets = null;
   state.context = []; state.llm1x2 = null; state.aiMarkdown = '';
-  clearOdds(); // las cuotas escritas eran de otro partido
+  restoreOdds(ev); // las de otro partido se borran; las de este, si ya las había escrito, vuelven
   els.neutral.checked = ev.neutral === true;
   els.contextBox.textContent = ''; els.result.textContent = ''; els.usage.hidden = true;
-  renderFixtures();
+  markFixture();
   els.matchCard.hidden = false;
   els.matchTitle.textContent = `${ev.home.name} vs ${ev.away.name}`;
   els.matchSub.textContent = `${LEAGUES[state.slug].name} · ${fmtDay(ev.date)}, ${fmtHour(ev.date)} (hora de Colombia)` + (ev.venue && ev.venue.name ? ` · ${ev.venue.name}` : '');
@@ -174,6 +233,7 @@ async function selectEvent(ev) {
   els.forecastBox.textContent = ''; els.valueBox.textContent = ''; els.dataBox.textContent = ''; els.shareBar.hidden = true;
   showStatus('Leyendo tabla, resultados y cuotas del partido…', 'loading');
   els.matchCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try { els.matchTitle.focus({ preventScroll: true }); } catch {} // quien usa lector de pantalla o teclado llega al partido
   try {
     const parts = await Data.loadMatch(state.slug, LEAGUES[state.slug], ev);
     if (token !== state.loadToken) return;
@@ -182,11 +242,11 @@ async function selectEvent(ev) {
     recompute();
   } catch (err) {
     if (token !== state.loadToken) return;
-    showStatus('No se pudieron leer los datos del partido. Intente de nuevo.', 'error');
+    showStatus('No se pudieron leer los datos del partido. Revise su conexión y toque el partido otra vez.', 'error');
   }
 }
 
-function readOdd(input) { const v = parseFloat(String(input.value).replace(',', '.')); return Number.isFinite(v) && v > 1 ? v : null; }
+function readOdd(input) { return parseOdd(input.value); }
 function userHouses() {
   const out = [];
   for (const [h, sel] of [['h1', els.h1Name], ['h2', els.h2Name]]) {
@@ -195,32 +255,47 @@ function userHouses() {
   }
   return out;
 }
-const bankrollValue = () => Math.max(0, parseFloat(els.bankroll.value) || 0);
+const bankrollValue = () => parseMoney(els.bankroll.value);
+function paintBank() {
+  const b = bankrollValue(), raw = String(els.bankroll.value).trim();
+  els.bankHint.textContent = b ? `Banca entendida: ${cop(b)}. Tope por apuesta (1%): ${cop(b * 0.01)}.` : (raw ? 'No se entiende el número: escríbalo solo con dígitos, por ejemplo 500000.' : '');
+}
 
 function recompute() {
   if (!state.parts || !state.event) return;
   const used = state.context.filter(c => c.used);
-  const input = Data.buildInput(Object.assign({}, state.parts, { neutral: els.neutral.checked, context: used }));
-  input.houses = input.houses.concat(userHouses());
-  state.input = input;
-  state.fc = Engine.forecast(input);
-  state.bets = Engine.evaluateBets(state.fc, { bankroll: bankrollValue(), now: Date.now(), kickoff: Date.parse(state.event.date) });
+  const houses = userHouses();
+  const build = (context) => { const input = Data.buildInput(Object.assign({}, state.parts, { neutral: els.neutral.checked, context })); input.houses = input.houses.concat(houses); return input; };
+  state.input = build(used);
+  state.fc = Engine.forecast(state.input);
+  // El mismo pronóstico sin las novedades de la IA: así se sabe si de verdad cambiaron algo
+  state.fcBase = used.length ? Engine.forecast(build([])) : null;
+  evaluate();
   renderForecast();
   renderValue();
   renderData();
   saveTrack();
 }
+function evaluate() { state.bets = Engine.evaluateBets(state.fc, { bankroll: bankrollValue(), now: Date.now(), kickoff: Date.parse(state.event.date) }); }
+// Las reglas "cuotas de menos de 6 horas" y "antes del inicio" dependen del reloj: se revisan solas
+function refreshValue() { if (!state.fc || !state.fc.final || !state.event) return; evaluate(); renderValue(); }
+setInterval(refreshValue, 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshValue(); });
 let recomputeTimer = null;
 function scheduleRecompute() { clearTimeout(recomputeTimer); recomputeTimer = setTimeout(recompute, 200); }
-for (const h of ['h1', 'h2']) for (const k of ODD_KEYS) oddInput(h, k).addEventListener('input', () => { state.oddsAt[h] = Date.now(); scheduleRecompute(); });
+for (const h of ['h1', 'h2']) for (const k of ODD_KEYS) {
+  const i = oddInput(h, k);
+  i.addEventListener('input', () => { state.oddsAt[h] = Date.now(); i.classList.toggle('bad', i.value.trim() !== '' && parseOdd(i.value) == null); scheduleRecompute(); });
+}
 for (const e of [els.h1Name, els.h2Name, els.bankroll]) e.addEventListener('change', () => { saveBank(); scheduleRecompute(); });
-els.bankroll.addEventListener('input', scheduleRecompute);
+els.bankroll.addEventListener('input', () => { paintBank(); scheduleRecompute(); });
 els.neutral.addEventListener('change', recompute);
 
 // ===== Pintar el pronóstico =====
 function renderForecast() {
   const fc = state.fc, ev = state.event, box = els.forecastBox;
   box.textContent = '';
+  els.neutral.disabled = !(state.input && state.input.model); // sin modelo de goles (copas), la cancha neutral no cambia nada
   const level = fc.quality.level;
   els.qualityBadge.textContent = level === 'Sin pronóstico' ? 'Sin pronóstico' : `Calidad de los datos: ${level}`;
   els.qualityBadge.className = 'badge ' + (level === 'Completa' ? 'completa' : level === 'Parcial' ? 'parcial' : level === 'Pobre' ? 'pobre' : 'sin');
@@ -228,27 +303,34 @@ function renderForecast() {
     const nb = el('div', 'note-box bad');
     nb.appendChild(el('h3', null, 'No hay datos suficientes para pronosticar este partido'));
     for (const r of fc.quality.reasons) nb.appendChild(el('p', null, r));
-    nb.appendChild(el('p', null, 'Si escribe abajo las cuotas de su casa, la app puede mostrar al menos lo que piensa el mercado.'));
+    // Si escribió cuotas y se descartaron, se dice cuáles y por qué
+    for (const h of fc.market.houses) for (const n of h.notes) nb.appendChild(el('p', null, `${h.name}: ${n}`));
+    nb.appendChild(el('p', null, fc.market.houses.some(h => h.src === 'U') ? 'Revise las cuotas que escribió: se necesitan las tres del 1X2 de una misma casa, en formato decimal (por ejemplo 2.35).' : 'Si escribe abajo las cuotas de su casa, la app puede mostrar al menos lo que piensa el mercado.'));
     box.appendChild(nb);
     els.shareBar.hidden = true;
     return;
   }
   const poor = level === 'Pobre';
-  const P = poor ? (x) => '≈' + pct5(x) : pct; // con datos pobres no se finge precisión: se redondea al 5%
+  const P = poor ? pct5 : pct;
   const rows = [[ev.home.name, fc.final.home, 0], ['Empate', fc.final.draw, 1], [ev.away.name, fc.final.away, 2]];
+
   const probs = el('div', 'probs');
   for (const [name, p, i] of rows) {
     const row = el('div', 'prob-row');
     row.appendChild(el('div', 'name', name));
     const bar = el('div', 'bar'); const fill = el('span'); fill.style.width = Math.round(p * 100) + '%'; bar.appendChild(fill); row.appendChild(bar);
     row.appendChild(el('div', 'val', P(p)));
-    const parts = [`${Math.round(p * 10)} de cada 10`];
+    const parts = [];
     if (fc.market.x) parts.push(`mercado ${pct(fc.market.x[i])}`);
     if (fc.model.ok) parts.push(`modelo ${pct(fc.model.probs[i])}`);
-    row.appendChild(el('div', 'sub', parts.join(' · ')));
+    if (parts.length) row.appendChild(el('div', 'sub', parts.join(' · ')));
     probs.appendChild(row);
   }
   box.appendChild(probs);
+  // La misma cifra dicha como frecuencia, solo para el resultado más probable (así las cuentas no chocan entre filas)
+  const fav = rows.reduce((best, r) => (r[1] > best[1] ? r : best), rows[0]);
+  const nFav = Math.round(fav[1] * 10);
+  box.appendChild(el('p', 'small muted', `En partidos como este, ${fav[2] === 1 ? 'el empate se da' : fav[0] + ' gana'} ${tenthText(nFav)}` + (nFav > 0 && nFav < 10 ? `; las otras ${10 - nFav} veces, no.` : '.')));
 
   const tiles = el('div', 'tiles');
   const tile = (k, v, s) => { const t = el('div', 'tile'); t.appendChild(el('div', 'k', k)); t.appendChild(el('div', 'v', v)); if (s) t.appendChild(el('div', 's', s)); tiles.appendChild(t); };
@@ -268,16 +350,22 @@ function renderForecast() {
       ? `El pronóstico es el mercado (cuotas sin margen) con un ajuste del ${Math.round(fc.w * 100)}% hacia el modelo de goles. ${fc.D < Engine.LIMITS.dLow ? 'Ambos están de acuerdo' : 'Se parecen, pero no del todo, así que el ajuste es menor'} (diferencia máxima de ${Math.round(fc.D * 100)} puntos).`
       : `El modelo de goles y el mercado discrepan en ${Math.round(fc.D * 100)} puntos. En estos casos casi siempre al modelo le falta una noticia (rotación, bajas), así que el pronóstico es el del mercado.`;
   } else if (fc.market.x) txt = 'El pronóstico es lo que dicen las cuotas (sin el margen de la casa). No hay modelo de goles para este partido.';
-  else txt = 'No hay cuotas para este partido: el pronóstico sale solo del modelo de goles, que no conoce bajas ni rotaciones. Escriba las cuotas de su casa para contrastarlo.';
+  else txt = 'Todavía no hay cuotas de referencia para este partido: el pronóstico sale solo del modelo de goles, que no conoce bajas ni rotaciones. Escriba abajo las cuotas de su casa para contrastarlo.';
   how.appendChild(el('p', null, txt));
+  how.appendChild(el('p', 'small muted', `"Calidad de los datos: ${level}" dice qué tan bien respaldado está el número, no qué tan probable es acertar.`));
   box.appendChild(how);
 
   const q = el('details', 'fold');
   q.appendChild(el('summary', null, `¿Por qué la calidad de los datos es "${level}"?`));
   const qb = el('div', 'fold-body'); const ul = el('ul');
-  for (const r of fc.quality.reasons.concat(fc.notes || [], fc.model.notes || [], fc.market.notes || [])) ul.appendChild(el('li', null, r));
+  // Sin repetir: una nota que ya está dentro de un motivo no se lista otra vez
+  const why = [];
+  for (const r of fc.quality.reasons.concat(fc.notes || [], fc.model.notes || [], fc.market.notes || [])) {
+    const key = String(r).replace(/\.$/, '');
+    if (!why.some(w => w.includes(key))) why.push(r);
+  }
+  for (const r of why) ul.appendChild(el('li', null, r));
   qb.appendChild(ul);
-  qb.appendChild(el('p', 'small muted', '"Calidad de los datos" indica qué tan bien respaldado está el número, no qué tan probable es acertar.'));
   q.appendChild(qb);
   box.appendChild(q);
   els.shareBar.hidden = false;
@@ -305,6 +393,8 @@ function renderValue() {
     else if (rec.stake > 0) nb.appendChild(el('p', null, `Monto sugerido: ${cop(rec.stake)} (${dec(rec.pctStake * 100, 2)}% de su banca; el tope es 1%). Una sola apuesta en este partido, sin combinarla.`));
     else nb.appendChild(el('p', null, 'Con su banca, el monto sugerido queda por debajo de $1.000: es demasiado pequeño para que valga la pena. No apostar.'));
     nb.appendChild(el('p', null, `Ventaja estimada: ${signed(rec.ev)} sobre lo apostado. Este valor viene de que su casa paga más que la otra, no de que la app sepa más que el mercado. Sigue siendo una apuesta: puede perderla.`));
+    const ats = uHouses.map(h => h.at).filter(Boolean);
+    nb.appendChild(el('p', null, `Antes de apostar confirme en ${rec.house} que la cuota sigue en ${rec.odds.toFixed(2)}; si bajó, no apueste.` + (ats.length ? ` (Cuotas escritas a las ${fmtHour(Math.min.apply(null, ats))})` : '')));
   } else {
     nb.appendChild(el('h3', null, '⛔ No apostar este partido'));
     const reasons = [];
@@ -383,16 +473,19 @@ function shareText() {
   const fc = state.fc, ev = state.event;
   if (!fc || !fc.final || !ev) return '';
   const top = fc.topScores[0];
+  const P = fc.quality.level === 'Pobre' ? pct5 : pct; // lo mismo que se ve en pantalla
   const lines = [
     `⚽ ${ev.home.name} vs ${ev.away.name}`,
     `${LEAGUES[state.slug].name} · ${fmtDateTime(ev.date)}`,
-    `Pronóstico: ${ev.home.name} ${pct(fc.final.home)} · Empate ${pct(fc.final.draw)} · ${ev.away.name} ${pct(fc.final.away)}`,
-    `Más de 2,5 goles: ${pct(fc.final.over25)} · Ambos anotan: ${pct(fc.btts)}`,
+    `Pronóstico: ${ev.home.name} ${P(fc.final.home)} · Empate ${P(fc.final.draw)} · ${ev.away.name} ${P(fc.final.away)}`,
+    `Más de 2,5 goles: ${P(fc.final.over25)} · Ambos anotan: ${P(fc.btts)}`,
     `Marcador más probable: ${top.home}-${top.away} (1 de cada ${oneIn(top.p)})`,
-    `Calidad de los datos: ${fc.quality.level}`
+    `Calidad de los datos: ${fc.quality.level} (qué tan respaldado está el número, no qué tan probable es acertar)`
   ];
   const rec = state.bets && state.bets.recommended;
-  lines.push(rec && rec.stake > 0 ? `Cuota con valor: ${rec.label} en ${rec.house} a ${rec.odds.toFixed(2)}` : 'Apuesta recomendada: ninguna');
+  lines.push(rec && rec.stake > 0
+    ? `Cuota con valor a las ${fmtHour(Date.now())}: ${rec.label} en ${rec.house} a ${rec.odds.toFixed(2)}. Sale de comparar dos casas, no de saber más que el mercado. Compruebe que la cuota siga igual y no apueste más del 1% de su banca.`
+    : 'Apuesta recomendada: ninguna');
   lines.push('', 'Estimación estadística, no una garantía. Juegue con responsabilidad.');
   return lines.join('\n');
 }
@@ -474,10 +567,11 @@ async function fetchWithRetry(body, signal, onRetry, withFallbackBeta) {
       continue;
     }
     let detail = '';
-    try { detail = (await resp.json())?.error?.message || ''; } catch {}
-    const map = { 401: 'API key inválida o sin permisos.', 403: 'Acceso denegado con esta API key.', 429: 'Límite de peticiones alcanzado. Intente en unos minutos.', 529: 'Los servidores de Claude están saturados. Intente en unos minutos.' };
-    const error = new Error(resp.status === 400 ? (detail || 'Solicitud inválida (revise el saldo de su cuenta).') : (map[resp.status] || detail || `Error ${resp.status} de la API.`));
-    error.status = resp.status;
+    try { const j = await resp.json(); detail = (j && j.error && j.error.message) || ''; } catch {}
+    const map = { 401: 'La API key no es válida o no tiene permisos. Revísela en ⚙️.', 403: 'Acceso denegado con esta API key.', 404: 'Su cuenta no tiene acceso a este modelo. Elija otro en ⚙️.', 413: 'La consulta es demasiado larga.', 429: 'Límite de peticiones alcanzado. Intente en unos minutos.', 529: 'Los servidores de Claude están saturados. Intente en unos minutos.' };
+    const bad = /credit balance|billing/i.test(detail) ? 'Su cuenta de Anthropic no tiene saldo. Recárguela en console.anthropic.com e intente de nuevo.' : (detail ? 'La API rechazó la solicitud: ' + detail : 'Solicitud inválida (revise el saldo de su cuenta).');
+    const error = new Error(resp.status === 400 ? bad : (map[resp.status] || (detail ? 'El servicio de IA respondió con un error: ' + detail : `Error ${resp.status} del servicio de IA.`)));
+    error.status = resp.status; error.detail = detail;
     throw error;
   }
 }
@@ -501,8 +595,9 @@ async function readStream(resp, { onText, onSearch }) {
       if (!payload) continue;
       let data;
       try { data = JSON.parse(payload); } catch { continue; }
+      const u = (data.type === 'message_start' ? data.message && data.message.usage : data.usage) || {};
       if (data.type === 'message_start') {
-        usage.input_tokens = Math.max(usage.input_tokens, data.message?.usage?.input_tokens || 0);
+        usage.input_tokens = Math.max(usage.input_tokens, u.input_tokens || 0);
       } else if (data.type === 'content_block_start') {
         blocks[data.index] = JSON.parse(JSON.stringify(data.content_block));
         if (data.content_block.type === 'server_tool_use') partialJson[data.index] = '';
@@ -518,15 +613,17 @@ async function readStream(resp, { onText, onSearch }) {
         const blk = blocks[data.index];
         if (blk && blk.type === 'server_tool_use') {
           try { blk.input = JSON.parse(partialJson[data.index] || '{}'); } catch { blk.input = {}; }
-          if (blk.name === 'web_search' && blk.input?.query && onSearch) onSearch(blk.input.query);
+          if (blk.name === 'web_search' && blk.input && blk.input.query && onSearch) onSearch(blk.input.query);
         }
       } else if (data.type === 'message_delta') {
-        if (data.delta?.stop_reason) stopReason = data.delta.stop_reason;
-        usage.output_tokens += data.usage?.output_tokens || 0;
-        usage.input_tokens = Math.max(usage.input_tokens, data.usage?.input_tokens || 0);
-        usage.web_search_requests += data.usage?.server_tool_use?.web_search_requests || 0;
+        if (data.delta && data.delta.stop_reason) stopReason = data.delta.stop_reason;
+        // La API envía el uso ACUMULADO de la respuesta: se toma el mayor, no se suma
+        usage.output_tokens = Math.max(usage.output_tokens, u.output_tokens || 0);
+        usage.input_tokens = Math.max(usage.input_tokens, u.input_tokens || 0);
+        usage.web_search_requests = Math.max(usage.web_search_requests, (u.server_tool_use && u.server_tool_use.web_search_requests) || 0);
       } else if (data.type === 'error') {
-        throw new Error(data.error?.message || 'Error de streaming.');
+        const e = data.error || {};
+        throw new Error(e.type === 'overloaded_error' ? 'Los servidores de Claude están saturados. Intente en unos minutos.' : `La IA interrumpió la respuesta (${e.message || 'error de transmisión'}). Intente de nuevo.`);
       }
     }
   }
@@ -549,7 +646,7 @@ async function runClaude({ system, userPrompt, tools, maxTokens, signal, onText,
     try { resp = await fetchWithRetry(body, signal, onRetry, useFallbacks); }
     catch (err) {
       // Si esta cuenta no admite el respaldo, se repite la petición sin él en vez de fallar
-      if (useFallbacks && err.status === 400 && /fallback/i.test(err.message)) { useFallbacks = false; cont--; continue; }
+      if (useFallbacks && err.status === 400 && /fallback/i.test(err.detail || err.message)) { useFallbacks = false; cont--; continue; }
       throw err;
     }
     const { stopReason: sr, usage, blocks } = await readStream(resp, { onText: collect, onSearch });
@@ -565,6 +662,7 @@ async function runClaude({ system, userPrompt, tools, maxTokens, signal, onText,
 function cancelAI() {
   if (state.aiController) { state.aiController.abort(); state.aiController = null; }
   state.aiToken++;
+  sticky = null;
   els.btnAi.disabled = false;
 }
 
@@ -580,9 +678,11 @@ async function analyzeContext() {
   const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, AI_TIMEOUT_MS);
   els.btnAi.disabled = true;
   els.result.textContent = ''; els.contextBox.textContent = ''; els.usage.hidden = true;
+  // Un análisis nuevo parte de cero: si falla o se cancela, no queda aplicado a escondidas el ajuste del anterior
+  if (state.context.length || state.llm1x2 || state.aiMarkdown) { state.context = []; state.llm1x2 = null; state.aiMarkdown = ''; recompute(); }
   const live = () => token === state.aiToken;
   const cancel = () => { cancelAI(); showStatus('Análisis cancelado.', 'success', { autoHide: 2500 }); };
-  showStatus('Buscando novedades del partido en la web…', 'loading', { onCancel: cancel });
+  showStatus('Buscando novedades del partido en la web…', 'loading', { onCancel: cancel, keep: true });
 
   // La variante básica de la búsqueda devuelve cada resultado con su URL: así se comprueba la fuente.
   const tool = { type: 'web_search_20250305', name: 'web_search', max_uses: 6 };
@@ -597,8 +697,8 @@ async function analyzeContext() {
   let shown = '', timer = null, done = false;
   const flush = () => { timer = null; if (done || !live()) return; els.result.innerHTML = renderMarkdown(shown.replace(/<datos_json>[\s\S]*?(<\/datos_json>|$)/i, '')); };
   const onText = (t) => { shown += t; if (!timer) timer = setTimeout(flush, 150); };
-  const onSearch = (q) => { if (live()) showStatus(`🔍 Buscando: ${q}`, 'loading', { onCancel: cancel }); };
-  const onRetry = (code, n) => { if (live()) showStatus(`Servidor ocupado (${code}). Reintentando… (${n}/3)`, 'loading', { onCancel: cancel }); };
+  const onSearch = (q) => { if (live()) showStatus(`🔍 Buscando: ${q}`, 'loading', { onCancel: cancel, keep: true }); };
+  const onRetry = (code, n) => { if (live()) showStatus(`Servidor ocupado (${code}). Reintentando… (${n}/3)`, 'loading', { onCancel: cancel, keep: true }); };
 
   try {
     const { text, stopReason, usage, model, blocks } = await runClaude({ system: Data.CONTEXT_SYSTEM, userPrompt, tools: [tool], maxTokens: 16000, signal: controller.signal, onText, onSearch, onRetry });
@@ -608,9 +708,9 @@ async function analyzeContext() {
     if (!text.trim()) throw new Error('La respuesta llegó vacía. Intente de nuevo.');
 
     const ex = Data.extractContext(text);
-    // URL que la búsqueda realmente devolvió en esta consulta
+    // Páginas que la búsqueda realmente devolvió en esta consulta, con su fecha si el buscador la da
     const seen = [];
-    for (const b of blocks) if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) for (const r of b.content) if (r && typeof r.url === 'string') seen.push(r.url);
+    for (const b of blocks) if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) for (const r of b.content) if (r && typeof r.url === 'string') seen.push({ url: r.url, age: r.page_age || null });
     const complete = stopReason === 'end_turn';
     const verified = Data.verifyContext(ex.contexto, seen);
     // Una respuesta cortada no ajusta el pronóstico: podría faltar la mitad de las novedades
@@ -623,15 +723,18 @@ async function analyzeContext() {
     }
     state.aiMarkdown = md;
     els.result.innerHTML = renderMarkdown(md);
+    sticky = null;
+    recompute(); // el contexto verificado ajusta los goles esperados (si en este partido hay modelo que pese)
     renderContext(ex.parsed, seen.length, complete);
     const usd = (usage.input_tokens / 1e6) * PRICES[model].in + (usage.output_tokens / 1e6) * PRICES[model].out + usage.web_search_requests * WEB_SEARCH_USD;
     els.usage.textContent = `Esta consulta: ${usage.input_tokens.toLocaleString('es-CO')} tokens de entrada · ${usage.output_tokens.toLocaleString('es-CO')} de salida · ${usage.web_search_requests} búsqueda(s) ≈ US$${usd.toFixed(3)} (~${cop(usd * USD_TO_COP)} COP, estimado).`;
     els.usage.hidden = false;
     hideStatus();
-    recompute(); // el contexto verificado ajusta los goles esperados
   } catch (err) {
     if (!live()) return;
+    sticky = null;
     if (err.name === 'AbortError') showStatus(timedOut ? 'Tiempo de espera agotado. Intente de nuevo.' : 'Análisis cancelado.', timedOut ? 'error' : 'success', { autoHide: 3500 });
+    else if (err instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(String(err.message))) showStatus('❌ Se perdió la conexión con el servicio de IA. Revise su internet e intente de nuevo.', 'error');
     else showStatus(`❌ ${err.message}`, 'error');
   } finally {
     clearTimeout(timeout);
@@ -643,8 +746,12 @@ els.btnAi.addEventListener('click', analyzeContext);
 function renderContext(parsed, nSeen, complete) {
   const box = els.contextBox;
   box.textContent = '';
+  const fc = state.fc, base = state.fcBase;
+  const tri = (f) => `${pct(f.home)} / ${pct(f.draw)} / ${pct(f.away)}`;
+  // ¿Las novedades movieron de verdad el pronóstico? (en copas, o cuando manda el mercado, no lo mueven)
+  const moved = !!(fc && fc.final && base && base.final) && ['home', 'draw', 'away', 'over25'].some(k => Math.abs(fc.final[k] - base.final[k]) >= 0.0005);
   const nb = el('div', 'note-box');
-  nb.appendChild(el('h3', null, 'Novedades que ajustan el pronóstico'));
+  nb.appendChild(el('h3', null, moved ? 'Novedades que ajustan el pronóstico' : 'Novedades encontradas'));
   if (!parsed) nb.appendChild(el('p', null, 'La IA no devolvió los datos en el formato esperado: el pronóstico no se ajustó. El texto de abajo es solo informativo.'));
   else if (!state.context.length) nb.appendChild(el('p', null, 'La IA no encontró bajas ni rotaciones: el pronóstico no cambia.'));
   else {
@@ -655,9 +762,10 @@ function renderContext(parsed, nSeen, complete) {
       const what = c.type === 'baja' ? `baja de ${c.player || 'un jugador'} (${ROLE[c.role]})` : c.type === 'rotacion' ? 'rotación de titulares' : 'sin público';
       const counts = c.type !== 'baja' || c.role !== 'otro';
       let verdict;
-      if (c.used) verdict = counts ? '✔ usado en el cálculo' : '✔ confirmado (no cambia el cálculo: no es un jugador clave)';
+      if (c.used) verdict = !counts ? '✔ confirmado (no cambia el cálculo: no es un jugador clave)' : moved ? '✔ usado en el cálculo' : '✔ confirmado, pero no cambia el pronóstico de este partido';
       else if (!complete) verdict = '✖ no usado: la respuesta quedó incompleta';
       else if (c.status !== 'confirmada') verdict = `✖ no usado: es ${c.status === 'duda' ? 'duda' : 'rumor'}, no está confirmado`;
+      else if (c.stale) verdict = '✖ no usado: la noticia citada es antigua (más de 14 días)';
       else verdict = '✖ no usado: la fuente citada no aparece entre los resultados de la búsqueda';
       const li = el('li', null, `${who}: ${what}. ${verdict}.`);
       const u = safeUrl(c.url);
@@ -666,8 +774,12 @@ function renderContext(parsed, nSeen, complete) {
     }
     nb.appendChild(ul);
     if (!nSeen) nb.appendChild(el('p', null, 'No se pudo comprobar ninguna fuente en esta consulta, así que nada se usó para ajustar el pronóstico.'));
+    if (moved) nb.appendChild(el('p', null, `Con estas novedades el pronóstico pasó de ${tri(base.final)} a ${tri(fc.final)} (local / empate / visitante).`));
+    else if (state.context.some(c => c.used)) nb.appendChild(el('p', null, fc && fc.model && fc.model.ok
+      ? 'En este partido el número sale de las cuotas, y las casas ya suelen tener en cuenta estas noticias: por eso el pronóstico no se mueve.'
+      : 'Para este partido no hay modelo de goles que ajustar: el número sale solo de las cuotas, que ya suelen tener en cuenta estas noticias.'));
   }
-  nb.appendChild(el('p', 'small muted', 'Cada novedad usada mueve los goles esperados un 4–5%, con un tope total del 10%.'));
+  nb.appendChild(el('p', 'small muted', 'Cada novedad usada mueve los goles esperados del modelo un 4–5%, con un tope total del 10%. Se comprueba que la página citada salió en la búsqueda y que no es vieja; no que diga exactamente lo que la IA resume: abra la fuente.'));
   box.appendChild(nb);
 }
 
@@ -686,14 +798,20 @@ function saveTrack() {
   const id = `${state.slug}:${ev.id}`;
   const idx = list.findIndex(r => r.id === id);
   const rec = state.bets && state.bets.recommended;
+  const prev = idx >= 0 ? list[idx] : null;
+  const odds = oddsSnapshot();
+  const newRec = rec && rec.stake > 0 ? { house: rec.house, key: rec.key, label: rec.label, odds: rec.odds, stake: rec.stake, ev: rec.ev, at: now } : null;
+  // Lo recomendado no se borra por reabrir el partido ni porque las cuotas envejezcan: solo si usted cambia las cuotas
+  const keepRec = !!prev && !!prev.rec && (!!prev.bet || oddsValues(prev.odds) === oddsValues(odds));
   const record = {
     id, slug: state.slug, eventId: ev.id, league: LEAGUES[state.slug].name, home: ev.home.name, away: ev.away.name, kickoff: ev.date,
     savedAt: new Date(now).toISOString(), v: 3,
     final: [fc.final.home, fc.final.draw, fc.final.away], over: fc.final.over25, btts: fc.btts,
-    market: fc.market.x || null, model: fc.model.ok ? fc.model.probs : null, llm: state.llm1x2 || null,
+    market: fc.market.x || null, model: fc.model.ok ? fc.model.probs : null, llm: state.llm1x2 || (prev && prev.llm) || null,
     quality: fc.quality.level, top: `${fc.topScores[0].home}-${fc.topScores[0].away}`,
-    rec: rec && rec.stake > 0 ? { house: rec.house, key: rec.key, label: rec.label, odds: rec.odds, stake: rec.stake, ev: rec.ev } : null,
-    bet: idx >= 0 ? list[idx].bet || null : null, result: idx >= 0 ? list[idx].result || null : null
+    odds,
+    rec: newRec ? (prev && prev.rec && prev.rec.key === newRec.key && prev.rec.house === newRec.house && prev.rec.odds === newRec.odds ? Object.assign(newRec, { at: prev.rec.at || now }) : newRec) : (keepRec ? prev.rec : null),
+    bet: prev ? prev.bet || null : null, result: prev ? prev.result || null : null
   };
   if (idx >= 0) list[idx] = record; else list.unshift(record);
   saveTrackList(list);
@@ -719,11 +837,14 @@ function renderTrack() {
   const tile = (k, v, s, cls) => { const t = el('div', 'tile'); t.appendChild(el('div', 'k', k)); t.appendChild(el('div', 'v' + (cls ? ' ' + cls : ''), v)); if (s) t.appendChild(el('div', 's', s)); els.trackTiles.appendChild(t); };
   tile('Pronósticos', String(list.length), `${resolved.length} con resultado`);
   tile('Pendientes', String(pending.length), overdue.length ? `${overdue.length} sin resultado hace más de 2 días` : 'por jugar o por registrar', overdue.length ? 'neg' : '');
-  tile('Acertó el favorito', resolved.length ? `${sum.favHit} de ${resolved.length}` : '—', 'el resultado con más probabilidad');
+  // Con pocos partidos, un "7 de 8" invita a apostar de más: el conteo se muestra desde 100, junto a lo esperado
+  const showHits = resolved.length >= 100;
+  const expHits = resolved.reduce((a, r) => a + Math.max.apply(null, r.final), 0);
+  tile('Acertó el favorito', showHits ? `${sum.favHit} de ${resolved.length}` : '—', showHits ? `se esperaban cerca de ${Math.round(expHits)}` : `se muestra desde 100 partidos (van ${resolved.length})`);
   const bets = list.filter(r => r.bet && r.result);
   let pnl = 0, staked = 0;
   for (const r of bets) { staked += r.bet.stake; pnl += betWon(r.bet, r.result) ? r.bet.stake * (r.bet.odds - 1) : -r.bet.stake; }
-  tile('Mis apuestas', bets.length ? cop(pnl) : '—', bets.length ? `${bets.length} apuesta(s), ${cop(staked)} apostados` : 'ninguna registrada', bets.length ? (pnl >= 0 ? 'pos' : 'neg') : '');
+  tile('Mis apuestas', bets.length ? cop(pnl) : '—', bets.length ? `${bets.length} apuesta(s), ${cop(staked)} apostados` : 'ninguna registrada', bets.length >= 200 ? (pnl >= 0 ? 'pos' : 'neg') : '');
 
   const v = els.trackVerdict; v.textContent = '';
   const nb = el('div', 'note-box');
@@ -734,10 +855,10 @@ function renderTrack() {
   } else {
     const d = sum.diff;
     nb.appendChild(el('h3', null, `${resolved.length} partidos con resultado`));
-    if (d) {
+    if (d && sum.nMarket >= 100) {
       const verdict = d.hi < 0 ? 'Por ahora la app va mejor que el mercado.' : d.lo > 0 ? 'Por ahora la app va PEOR que el mercado: fíese más de las cuotas que del ajuste del modelo.' : 'No hay diferencia demostrable entre la app y el mercado.';
       nb.appendChild(el('p', null, `Error medio (RPS, menor es mejor) en los ${sum.nMarket} partidos con cuotas: diferencia app − mercado de ${d.mean.toFixed(4)} (intervalo del 98%: ${d.lo.toFixed(4)} a ${d.hi.toFixed(4)}). ${verdict}`));
-    }
+    } else nb.appendChild(el('p', null, `Solo ${sum.nMarket || 0} partido(s) tienen cuotas guardadas: se necesitan 100 para comparar la app con el mercado.`));
     nb.appendChild(el('p', null, 'Calibración (lo pronosticado debería parecerse a lo ocurrido):'));
     const ul = el('ul'); ul.style.paddingLeft = '20px';
     for (const c of sum.calibration) if (c.n) ul.appendChild(el('li', null, `Favorito entre ${pct(c.from)} y ${pct(c.to)}: se pronosticó ${pct(c.predicted)} en promedio y acertó ${c.hits} de ${c.n} (${pct(c.observed.p)}; rango creíble ${pct(c.observed.lo)}–${pct(c.observed.hi)}).`));
@@ -750,31 +871,34 @@ function renderTrack() {
   for (const r of list) {
     const item = el('div', 'track-item'); const top = el('div', 'track-top'); const meta = el('div', 'meta');
     meta.appendChild(el('div', null, `${r.home} vs ${r.away}`));
-    meta.appendChild(el('small', null, `${r.league} · ${fmtDateTime(r.kickoff)} · ${pct(r.final[0])}/${pct(r.final[1])}/${pct(r.final[2])} · datos: ${r.quality}`));
+    const Pr = r.quality === 'Pobre' ? pct5 : pct;
+    meta.appendChild(el('small', null, `${r.league} · ${fmtDateTime(r.kickoff)} · ${Pr(r.final[0])} / ${Pr(r.final[1])} / ${Pr(r.final[2])} · datos: ${r.quality}`));
     const actions = el('div', 'track-actions');
     if (r.result) {
       const o = Engine.outcomeIndex(r.result.home, r.result.away);
       const fav = r.final.indexOf(Math.max.apply(null, r.final));
       actions.appendChild(el('span', 'tag ' + (o === fav ? 'good' : 'bad'), `${r.result.home}–${r.result.away} · favorito ${o === fav ? 'acertó' : 'falló'}`));
-      if (r.result.extraTime) actions.appendChild(el('span', 'tag mid', 'revise: hubo prórroga o penales'));
+      if (r.result.extraTime) actions.appendChild(el('span', 'tag mid', r.result.ninety ? 'marcador a los 90 min (hubo prórroga)' : 'revise: hubo prórroga o penales'));
       const edit = el('button', 'icon-btn', '✏️'); edit.title = 'Corregir el marcador'; edit.setAttribute('aria-label', 'Corregir el marcador');
       edit.addEventListener('click', () => updateRecord(r.id, x => { x.result = null; }));
       actions.appendChild(edit);
     } else if (now > Date.parse(r.kickoff)) {
       const a = document.createElement('input'), b = document.createElement('input');
-      for (const i of [a, b]) { i.type = 'number'; i.min = '0'; i.max = '20'; i.step = '1'; i.inputMode = 'numeric'; }
+      for (const i of [a, b]) { i.type = 'text'; i.inputMode = 'numeric'; i.maxLength = 2; i.autocomplete = 'off'; }
       a.setAttribute('aria-label', `Goles de ${r.home} al minuto 90`); b.setAttribute('aria-label', `Goles de ${r.away} al minuto 90`);
       const ok = el('button', 'icon-btn', 'Guardar marcador');
       ok.addEventListener('click', () => {
-        const ha = parseInt(a.value, 10), hb = parseInt(b.value, 10);
+        const ha = /^\d{1,2}$/.test(a.value.trim()) ? parseInt(a.value, 10) : NaN, hb = /^\d{1,2}$/.test(b.value.trim()) ? parseInt(b.value, 10) : NaN;
         if (!(ha >= 0 && ha <= 20 && hb >= 0 && hb <= 20)) { showStatus('Escriba los goles de ambos equipos al minuto 90 (sin prórroga ni penales).', 'error', { autoHide: 3500 }); return; }
         updateRecord(r.id, x => { x.result = { home: ha, away: hb, manual: true }; });
       });
       actions.appendChild(a); actions.appendChild(el('span', null, '–')); actions.appendChild(b); actions.appendChild(ok);
     } else actions.appendChild(el('span', 'tag mid', 'por jugar'));
-    if (r.rec) {
-      const betBtn = el('button', 'icon-btn', r.bet ? `✔ Aposté ${cop(r.bet.stake)}` : `Marcar: aposté la recomendada (${r.rec.label})`);
-      betBtn.addEventListener('click', () => updateRecord(r.id, x => { x.bet = x.bet ? null : { house: x.rec.house, key: x.rec.key, odds: x.rec.odds, stake: x.rec.stake }; }));
+    if (r.rec || r.bet) {
+      const label = r.bet ? `✔ Aposté ${cop(r.bet.stake)}` : `Marcar que aposté: ${r.rec.label} en ${r.rec.house} a ${Number(r.rec.odds).toFixed(2)}` + (r.rec.at ? ` (recomendado a las ${fmtHour(r.rec.at)})` : '');
+      const betBtn = el('button', 'icon-btn', label);
+      betBtn.title = r.bet ? 'Toque para desmarcar' : 'Toque solo si de verdad hizo esta apuesta';
+      betBtn.addEventListener('click', () => updateRecord(r.id, x => { x.bet = x.bet ? null : (x.rec ? { house: x.rec.house, key: x.rec.key, odds: x.rec.odds, stake: x.rec.stake } : null); }));
       actions.appendChild(betBtn);
     }
     const del = el('button', 'icon-btn', '🗑'); del.title = 'Quitar del seguimiento'; del.setAttribute('aria-label', 'Quitar del seguimiento');
@@ -796,20 +920,22 @@ async function refreshResults() {
   if (!due.length) { showStatus('No hay partidos jugados pendientes de resultado.', 'success', { autoHide: 2500 }); return; }
   els.btnRefreshResults.disabled = true;
   showStatus(`Buscando ${due.length} resultado(s)…`, 'loading');
-  let found = 0, failed = 0;
+  let found = 0, failed = 0, manual = 0;
   for (const r of due) {
     try {
       const st = await Data.loadResult(r.slug, r.eventId);
       if (st && st.completed && st.home != null && st.away != null) {
         const list = loadTrack(); const x = list.find(y => y.id === r.id);
-        if (x && !x.result) { x.result = { home: st.home, away: st.away, extraTime: st.extraTime || false }; saveTrackList(list); found++; }
+        // Con prórroga o penales solo vale el marcador de los 90 minutos; si no se puede saber, lo escribe usted
+        if (st.extraTime && st.score90 === false) { manual++; continue; }
+        if (x && !x.result) { x.result = { home: st.home, away: st.away, extraTime: st.extraTime || false, ninety: !!st.extraTime }; saveTrackList(list); found++; }
       }
     } catch { failed++; }
   }
   els.btnRefreshResults.disabled = false;
   renderTrack();
-  const rest = due.length - found - failed;
-  showStatus(`${found} resultado(s) nuevos.` + (failed ? ` ${failed} no se pudieron consultar.` : '') + (rest > 0 ? ` ${rest} aún no figuran como terminados.` : ''), failed ? 'error' : 'success', { autoHide: 4500 });
+  const rest = due.length - found - failed - manual;
+  showStatus(`${found} resultado(s) nuevos.` + (failed ? ` ${failed} no se pudieron consultar.` : '') + (manual ? ` ${manual} tuvieron prórroga o penales: escriba usted el marcador de los 90 minutos.` : '') + (rest > 0 ? ` ${rest} aún no figuran como terminados.` : ''), failed ? 'error' : 'success', { autoHide: manual ? 8000 : 4500 });
 }
 els.btnRefreshResults.addEventListener('click', refreshResults);
 els.btnTrack.addEventListener('click', () => {
@@ -836,3 +962,4 @@ els.btnClearTrack.addEventListener('click', () => {
 populateSelectors();
 refreshTrackButton();
 loadFixturesUI();
+window.__appReady = true; // boot.js ya no debe mostrar el aviso de "no pudo iniciar"

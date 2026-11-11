@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Envía a WhatsApp el pronóstico de cada partido de la agenda antes del pitazo inicial (API de Claude + búsqueda web; envío por Meta Cloud API o Twilio).",
+  "description": "Envía a WhatsApp el pronóstico estadístico de cada partido antes del pitazo inicial (mismo motor que la app web; IA opcional; envío por Meta Cloud API o Twilio).",
   "main": "src/index.js",
   "engines": { "node": ">=20" },
   "scripts": {

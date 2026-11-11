@@ -1,6 +1,6 @@
 # Jh
 
-Pequeñas apps web estáticas, publicadas en Netlify (cada cambio en `main` se publica solo).
+Pequeñas apps web estáticas, publicadas en Netlify (cada cambio en `main` se publica solo). La **portada** del sitio (`index.html`) enlaza a las tres: https://fabulous-unicorn-235c34.netlify.app/
 
 ## ⚽ [Pronósticos de fútbol](pronosticos/) — probabilidades con datos reales y un motor estadístico
 
@@ -28,6 +28,6 @@ enlace que se actualiza solo.
 
 En línea en **https://fabulous-unicorn-235c34.netlify.app/sala/** (los equipos se guardan en Netlify Blobs vía `netlify/functions/sala.mjs`). Detalles y opciones: **[sala/SETUP.md](sala/SETUP.md)**.
 
-## 🧮 [Calculadora](index.html)
+## 🧮 [Calculadora](calculadora/)
 
 Calculadora sencilla en una sola página.

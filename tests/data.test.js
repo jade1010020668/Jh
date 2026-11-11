@@ -72,7 +72,10 @@ const cupIn = D.buildInput({ cfg: L.LEAGUES['uefa.champions'], event: ev, groups
 ok(cupIn.model === null && cupIn.phase === 'copa' && cupIn.houses.length === 1, 'copa: solo mercado');
 const noTable = D.buildInput({ cfg, event: ev, groups: [], core: null, prevCore: null, summary: null });
 ok(noTable.model === null && noTable.dataComplete === false, 'sin tabla → sin modelo');
-const promo = D.buildInput({ cfg, event: ev, groups, core, prevCore: { '5264': prevCore['5264'] }, summary });
+const prevSin = Object.assign({}, prevCore); delete prevSin[ev.away.id];
+const promo = D.buildInput({ cfg, event: ev, groups, core, prevCore: prevSin, summary });
+const prevMalo = D.buildInput({ cfg, event: ev, groups, core, prevCore: { [ev.home.id]: prevCore[ev.home.id] }, summary });
+ok(prevMalo.model && !prevMalo.model.home.prev && !prevMalo.model.home.promoted, 'torneo anterior que no es una tabla de liga → se ignora, nadie pasa por ascendido');
 ok(promo.model.away.promoted === true && !promo.model.away.prev, 'equipo ausente del torneo anterior → ascendido');
 
 section('Contexto de la IA: saneo y verificación de fuente');
@@ -92,3 +95,115 @@ section('Contexto de la IA: saneo y verificación de fuente');
 section('Altitud');
 ok(L.cityAltitude('Bogotá') === 2600 && L.cityAltitude('Medellin') === 1495 && L.cityAltitude('Ciudad Desconocida') === null, 'ciudades');
 ok(L.clubBaseAltitude('Deportivo Cali') === 1000 && L.clubBaseAltitude('América de Cali') === 1000 && L.clubBaseAltitude('Independiente Medellín') === 1495 && L.clubBaseAltitude('Atlético Nacional') === 1495 && L.clubBaseAltitude('Internacional de Bogotá') === 2600 && L.clubBaseAltitude('Real Madrid') === null, 'clubes');
+
+// ====== Casos reales añadidos tras la auditoría (respuestas guardadas de la fuente) ======
+section('Fases con los nombres reales de la fuente');
+{
+  const fin = D.parseScoreboard(fx('scoreboard-col1-final-20260608.json'))[0];
+  ok(fin.seasonSlug === 'apertura---finals' && fin.seasonYear === 2026, 'la final real trae el nombre "apertura---finals"');
+  ok(D.detectPhase(cfg, fin, { pj: 19 }, { pj: 19 }, 20) === 'final', 'final real de la Liga BetPlay → fase "final"');
+  ok(D.detectPhase(cfg, { seasonSlug: 'apertura---semifinals' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'semifinales → cuadrangular');
+  ok(D.detectPhase(cfg, { seasonSlug: 'apertura---quarterfinals' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'cuartos → cuadrangular (no "final" por contener la palabra)');
+  ok(D.detectPhase(cfg, { seasonSlug: 'playoffs---finals' }, { pj: 19 }, { pj: 19 }, 20) === 'final', 'playoffs---finals → final');
+  ok(D.detectPhase(cfg, { seasonSlug: 'clausura', note: 'Semifinal - Group A' }, { pj: 19 }, { pj: 19 }, 20) === 'cuadrangular', 'nota de grupo semifinal → cuadrangular');
+}
+
+section('Cuadrangulares: la tabla que llega es la del grupo, se usa la de la fase regular');
+{
+  const semis = D.parseStandings(fx('standings-col1-semis-2025.json'));
+  ok(semis.length === 2 && semis.every(g => g.rows.length === 4), 'la fuente devuelve dos grupos de 4 (caso real de 2025)');
+  const c4 = D.parseCore(fx('core-col1-2025-4.json')), c5 = D.parseCore(fx('core-col1-2025-5.json'));
+  ok(Object.keys(c4).length === 18 && Object.keys(c5).length === 4, 'tabla regular (18 equipos listados) y tabla del cuadrangular (4)');
+  const evQ = { id: 'q1', date: '2025-11-25T01:00:00.000Z', home: { id: '5264', name: 'Atlético Nacional' }, away: { id: '2690', name: 'Equipo B' }, seasonSlug: 'clausura---semifinals', seasonYear: 2025, venue: { city: 'Medellin' } };
+  const solo = D.buildInput({ cfg, event: evQ, groups: semis, core: c5, prevCore: null, summary: null });
+  ok(solo.model === null && solo.dataNotes.some(n => n.includes('no es la de la fase regular')), 'con solo la tabla del grupo NO se arma el modelo (antes se tomaba como si fuera la liga)');
+  const rows = Object.keys(c4).map(id => Object.assign({ id, name: '', short: '', pts: null, rank: null }, c4[id].total));
+  ok(!D.tableChecks(rows).ok && D.tableChecks(rows, { partial: true }).ok, 'tabla regular sin los descendidos: se acepta como parcial, con aviso');
+  const full = D.buildInput({ cfg, event: evQ, groups: semis, table: { name: 'Fase regular', year: 2025, type: 4, rows, fromCore: true }, core: c4, prevCore: null, summary: null });
+  ok(full.model && full.model.rows.length === 18 && full.phase === 'cuadrangular' && full.model.home.name === 'Atlético Nacional', 'con la tabla regular hallada sí hay modelo, en fase cuadrangular');
+  ok(full.model.home.pj === 20, 'los datos del equipo son los de la fase regular (20 partidos)');
+}
+
+section('Carga de un partido de cuadrangular: se busca la tabla regular hacia atrás');
+{
+  const seen = [];
+  const map = (url) => {
+    seen.push(url);
+    if (url.includes('/apis/v2/sports/soccer/col.1/standings')) return fx('standings-col1-semis-2025.json');
+    if (url.includes('/seasons/2025/types/5/')) return fx('core-col1-2025-5.json');
+    if (url.includes('/seasons/2025/types/4/')) return fx('core-col1-2025-4.json');
+    if (url.includes('/seasons/2025/types/1/')) return fx('core-col1-2026-1.json'); // hace de Apertura del mismo año
+    return null;
+  };
+  const evQ = { id: 'q1', date: '2025-11-25T01:00:00.000Z', home: { id: '5264', name: 'Atlético Nacional' }, away: { id: '2690', name: 'Equipo B' }, seasonSlug: 'clausura---semifinals', seasonYear: 2025, venue: { city: 'Medellin' } };
+  require('./harness.js').wait(async () => {
+    const realFetch = global.fetch;
+    global.fetch = async (url) => { const j = map(String(url)); return { ok: !!j, status: j ? 200 : 404, json: async () => j }; };
+    let parts;
+    try { parts = await D.loadMatch('col.1', cfg, evQ); } finally { global.fetch = realFetch; }
+    ok(parts.table && parts.table.type === 4 && parts.table.rows.length === 18 && parts.table.fromCore === true, 'loadMatch encontró la tabla de la fase regular (tipo 4), no la del grupo');
+    ok(seen.some(u => u.includes('/types/4/')) && !seen.some(u => u.includes('/types/3/')), 'se detuvo en la primera tabla de liga válida');
+    const inp = D.buildInput(parts);
+    ok(inp.model && inp.phase === 'cuadrangular', 'el partido de cuadrangular queda con modelo');
+    ok(parts.prevCore && Object.keys(parts.prevCore).length >= 18, 'y con el torneo anterior (Apertura del mismo año)');
+  });
+}
+
+section('Torneo anterior: candidatos y validación');
+{
+  const c = D.prevCandidates(cfg, 2027, 1);
+  ok(c.length === 4 && c[0].year === 2026 && c[0].type === 5 && c[1].type === 4, 'antes del Apertura: se prueban las fases del año anterior, de la última a la primera');
+  ok(D.prevCandidates(cfg, 2026, 4)[0].type === 1 && D.prevCandidates(cfg, 2026, 5)[0].type === 1, 'antes del Clausura: el Apertura del mismo año, sea cual sea la numeración');
+  ok(!D.prevValid(D.parseCore(fx('core-col1-2025-5.json')), groups[0].rows), 'una tabla de cuadrangular (4 equipos) no vale como torneo anterior');
+  ok(D.prevValid(prevCore, groups[0].rows), 'el Apertura real sí vale');
+}
+
+section('Tabla con partidos aplazados: avisa, no bloquea');
+{
+  const rows = JSON.parse(JSON.stringify(groups[0].rows));
+  // se le quitan 4 partidos (todos empates 0-0) a dos equipos: sigue cuadrando, pero con 4 partidos de diferencia
+  rows[0].pj -= 0; const a = rows[5], b = rows[6];
+  if (a.e >= 4 && b.e >= 4) { a.pj -= 4; a.e -= 4; b.pj -= 4; b.e -= 4; }
+  const chk = D.tableChecks(rows);
+  ok(chk.ok, 'la tabla con aplazados pasa las comprobaciones');
+  ok(a.e >= 0 && (Math.max(...rows.map(r => r.pj)) - Math.min(...rows.map(r => r.pj)) <= 3 || chk.warn.length === 1), 'y deja un aviso cuando la diferencia pasa de 3 partidos');
+}
+
+section('Cuotas de referencia en otros formatos');
+{
+  const b = D.parseSummary(fx('summary-bet365-401884736.json'));
+  ok(b.house && b.house.name === 'Bet 365', 'se leen las cuotas decimales de Bet 365 (antes se ignoraban)');
+  near(b.house.odds.home, 1.071, 1e-9, 'local'); near(b.house.odds.draw, 11, 1e-9, 'empate'); near(b.house.odds.away, 23, 1e-9, 'visitante');
+  const h = E.evalHouse(b.house); ok(h.m1x2 && h.m1x2.overround > 1.03 && h.m1x2.overround < 1.12, 'con un margen creíble');
+  const l35 = D.parseScoreboard(fx('scoreboard-linea35.json'))[0];
+  ok(l35.house.odds.over25 === null && l35.house.odds.overLine === 3.5, 'línea de goles en 3,5: no se confunde con 2,5');
+  ok(l35.house.odds.fairOver > 0.60 && l35.house.odds.fairOver < 0.72, `se convierte a "más de 2,5" (${(l35.house.odds.fairOver * 100).toFixed(0)}%, más alto que el 3,5)`);
+  const fcl = E.forecast({ group: 'europa', phase: 'regular', model: null, houses: [l35.house], dataComplete: true, venueConfirmed: true });
+  near(fcl.final.over25, l35.house.odds.fairOver, 1e-9, 'el "más de 2,5" final sale del mercado convertido, no de un relleno');
+  const o = D.ouFromLine(2.5, 1.9, 1.9); ok(o.over25 === 1.9 && o.under25 === 1.9 && o.fairOver === undefined, 'línea 2,5: cuotas tal cual');
+  const o15 = D.ouFromLine(1.5, 1.30, 3.40); ok(o15.fairOver < 0.60 && o15.fairOver > 0.40, 'línea 1,5 → "más de 2,5" más bajo');
+  ok(Object.keys(D.ouFromLine(2.75, 1.9, 1.9)).length === 0 && Object.keys(D.ouFromLine(3.5, 1.2, 1.2)).length === 0, 'líneas asiáticas o márgenes absurdos: se descartan');
+}
+
+section('Partido con prórroga: cuenta el marcador de los 90 minutos');
+{
+  const s = D.parseSummary(fx('summary-aet-401858781.json'));
+  ok(s.status.extraTime && s.status.completed, 'partido real terminado en prórroga (3-3)');
+  ok(s.status.home === 1 && s.status.away === 3 && s.status.score90 === true, 'a los 90 minutos iba 1-3: ese es el resultado que cuenta (antes se registraba el 3-3)');
+  const j = JSON.parse(JSON.stringify(fx('summary-aet-401858781.json'))); j.header.competitions[0].details.pop();
+  const s2 = D.parseSummary(j);
+  ok(s2.status.score90 === false && s2.status.home === 3, 'si el detalle de goles no cuadra con el marcador, se avisa para escribirlo a mano');
+}
+
+section('Fuentes de la IA: dirección exacta y fecha de la página');
+{
+  ok(D.normUrl('https://www.futbolred.com/nota/1?utm_source=tw') === D.normUrl('https://futbolred.com/nota/1/'), 'se ignoran www, barra final y parámetros de rastreo');
+  ok(D.normUrl('https://sitio.com/nota?id=1') !== D.normUrl('https://sitio.com/nota?id=2'), 'dos notas que solo difieren en ?id= son páginas distintas');
+  ok(D.normUrl('https://sitio.com/Nota') !== D.normUrl('https://sitio.com/nota'), 'la ruta distingue mayúsculas');
+  const now = Date.parse('2026-11-11T17:00:00Z');
+  const it = [{ status: 'confirmada', url: 'https://a.com/1' }, { status: 'confirmada', url: 'https://a.com/2' }, { status: 'confirmada', url: 'https://a.com/3' }, { status: 'confirmada', url: 'https://a.com/4' }];
+  const v = D.verifyContext(it, [{ url: 'https://a.com/1', age: 'November 9, 2026' }, { url: 'https://a.com/2', age: 'March 3, 2019' }, { url: 'https://a.com/3', age: null }, 'https://a.com/4'], now);
+  ok(v[0].used && !v[0].stale, 'noticia de hace 2 días: se usa');
+  ok(!v[1].used && v[1].stale && v[1].sourceSeen, 'noticia de 2019: no se usa aunque la página haya salido en la búsqueda');
+  ok(v[2].used && v[3].used, 'sin fecha conocida se mantiene la regla anterior');
+}

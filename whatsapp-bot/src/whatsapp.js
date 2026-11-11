@@ -41,8 +41,8 @@ export function makeMetaSender({ token, phoneNumberId, to, apiVersion = 'v21.0' 
       });
       if (!resp.ok) {
         const detail = await resp.text().catch(() => '');
-        // 131047 / 131026: Meta no deja escribir texto libre si el destinatario no ha escrito en las últimas 24 h
-        const hint = /131047|131026|re-?engagement|24 hours/i.test(detail)
+        // 131047: Meta no deja escribir texto libre si el destinatario no ha escrito en las últimas 24 h
+        const hint = /131047|re-?engagement|24 hours/i.test(detail)
           ? ' → WhatsApp solo permite texto libre dentro de las 24 h siguientes a un mensaje TUYO a ese número: escríbele "hola" desde tu WhatsApp y reintenta (o usa una plantilla aprobada).'
           : (resp.status === 401 || /190|expired/i.test(detail) ? ' → El token de Meta venció o es inválido: genera uno nuevo (los de prueba duran 24 h).' : '');
         throw new Error(`Meta Cloud API ${resp.status}: ${detail}${hint}`);
@@ -60,7 +60,15 @@ export function makeTwilioSender({ sid, token, from, to }) {
   return async function send(body) {
     const chunks = splitMessage(body, 1500);
     for (const chunk of chunks) {
-      await client.messages.create({ from: fromAddr, to: toAddr, body: chunk });
+      let m;
+      try { m = await client.messages.create({ from: fromAddr, to: toAddr, body: chunk }); }
+      catch (e) { throw new Error(`Twilio ${e.status || ''} (código ${e.code || '?'}): ${e.message}`); }
+      // Twilio acepta el mensaje y lo entrega después: se consulta una vez su estado para detectar un rechazo inmediato
+      let st = null;
+      try { await new Promise((r) => setTimeout(r, 5000)); st = await client.messages(m.sid).fetch(); } catch { /* si no se puede consultar, se da por aceptado */ }
+      if (st && (st.status === 'failed' || st.status === 'undelivered')) {
+        throw new Error(`Twilio no entregó el mensaje (error ${st.errorCode || '?'}). Si es 63015 o 63016: envíe "join <palabra>" u "hola" desde su WhatsApp al número del sandbox y reintente.`);
+      }
     }
     return chunks.length;
   };

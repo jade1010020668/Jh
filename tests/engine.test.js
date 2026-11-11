@@ -154,7 +154,8 @@ section('Reglas de seguridad de la apuesta');
 section('Degradación sin datos');
 {
   const onlyModel = exampleInput({ houses: [] }); const f1 = E.forecast(onlyModel);
-  ok(f1.quality.level === 'Pobre' && f1.w === 0, 'solo modelo → Pobre'); near(f1.final.home, f1.model.probs[0], 1e-12, 'solo modelo: final = modelo');
+  ok(f1.quality.level === 'Parcial' && f1.w === 0, 'solo modelo en liga con modelo probado → Parcial');
+  { const eu = E.forecast(Object.assign({}, onlyModel, { group: 'europa' })); ok(eu.quality.level === 'Pobre', 'solo modelo en liga sin prueba propia → Pobre'); } near(f1.final.home, f1.model.probs[0], 1e-12, 'solo modelo: final = modelo');
   const onlyMkt = exampleInput({ model: null }); const f2 = E.forecast(onlyMkt);
   ok(f2.quality.level === 'Pobre', 'solo mercado → Pobre'); near(f2.final.draw, f2.market.x[1], 1e-12, 'solo mercado: final = mercado');
   const none = E.forecast({ group: 'betplay', phase: 'regular', model: null, houses: [] });
@@ -203,4 +204,42 @@ section('Parámetros calibrados (los que usa la app)');
   near(f2.final.over25, 0.5 * f2.model.over25 + 0.5 * (1 - Math.exp(-g) * (1 + g + g * g / 2)), 1e-12, 'sin cuotas de goles: mitad modelo, mitad promedio de la liga');
   ok(/poco fiable/.test(f2.overSource), 'y se avisa que es poco fiable');
   ok(E.evaluateBets(fc, { bankroll: 2000000 }).rows.length === 10, 'se siguen evaluando las diez cuotas escritas');
+}
+
+section('Reglas añadidas tras la auditoría');
+{
+  const t0 = 1e12, H = 3600e3;
+  const base = E.evaluateBets(E.forecast(exampleInput()), { bankroll: 2000000 });
+  ok(!!base.recommended, 'caso base: hay una recomendación (para que las pruebas siguientes signifiquen algo)');
+  // 1. Basta UNA casa con cuotas viejas para no recomendar: la comparación ya no es entre precios del mismo momento
+  const mix = exampleInput(); mix.houses[0].at = t0 - 7 * H; mix.houses[1].at = t0; // A vieja, B recién escrita
+  const bm = E.evaluateBets(E.forecast(mix), { bankroll: 2000000, now: t0 + 60e3 });
+  ok(!bm.recommended && bm.rows.every(r => r.why.some(w => /más de 6 horas/.test(w))), 'una casa con cuotas de hace 7 h bloquea todo el partido, también la apuesta en la otra casa');
+  const mix2 = exampleInput(); mix2.houses[0].at = t0; mix2.houses[1].at = t0 - 7 * H;
+  ok(!E.evaluateBets(E.forecast(mix2), { bankroll: 2000000, now: t0 + 60e3 }).recommended, 'y al revés también');
+  // 2. La casa de referencia contradice al usuario: probablemente cuotas de otro partido o en otro orden
+  const ref = exampleInput(); ref.houses.push({ name: 'DraftKings', src: 'H', odds: { home: 2.4, draw: 3.2, away: 3.1 } });
+  const fr = E.forecast(ref);
+  ok(fr.market.refDisagree1x2 === true && fr.quality.level !== 'Completa', 'referencia lejana: queda registrado y la calidad baja de Completa');
+  ok(fr.quality.reasons.some(r => /no coinciden con las de referencia/.test(r)), 'el motivo se explica');
+  const br = E.evaluateBets(fr, { bankroll: 2000000 });
+  ok(!br.rows.some(r => r.ok && (r.key === 'home' || r.key === 'draw' || r.key === 'away')), 'sin recomendación en el 1X2 mientras las cuotas no coincidan con el mercado');
+  const refOk = exampleInput(); refOk.houses.push({ name: 'DraftKings', src: 'H', odds: { home: 1.42, draw: 4.8, away: 7.4 } });
+  ok(E.forecast(refOk).market.refDisagree1x2 === false, 'referencia parecida: no hay aviso');
+  // 3. Un dígito mal copiado (5.60 por 4.60) ya no produce "valor": el margen de esa casa delata el error
+  const typo = { group: 'betplay', phase: 'regular', model: null, dataComplete: true, venueConfirmed: true, houses: [
+    { name: 'Wplay', src: 'U', odds: { home: 1.42, draw: 5.60, away: 7.60 } },
+    { name: 'Codere', src: 'U', odds: { home: 1.43, draw: 4.55, away: 7.50 } }] };
+  const ft = E.forecast(typo); const bt = E.evaluateBets(ft, { bankroll: 2000000 });
+  ok(ft.market.houses[0].m1x2.overround < 1.03, 'la casa con la cuota mal copiada queda con un margen de menos del 3%');
+  ok(!bt.recommended && bt.rows.some(r => r.why.some(w => /margen de una de sus casas/.test(w))), 'no se recomienda y se pide revisar las dos casas');
+  const fine = JSON.parse(JSON.stringify(typo)); fine.houses[0].odds.draw = 4.60;
+  ok(!E.evaluateBets(E.forecast(fine), { bankroll: 2000000 }).rows.some(r => r.why.some(w => /margen de una de sus casas/.test(w))), 'con la cuota bien copiada el aviso de margen no aparece');
+  // 4. Los motivos no se contradicen
+  const far = exampleInput(); far.houses = [{ name: 'A', src: 'U', odds: { home: 2.6, draw: 3.2, away: 2.8 } }, { name: 'B', src: 'U', odds: { home: 2.55, draw: 3.25, away: 2.85 } }];
+  const rf = E.forecast(far).quality.reasons;
+  ok(rf.some(r => /más de 10 puntos/.test(r)) && !rf.some(r => /entre 5 y 10 puntos/.test(r)), 'con más de 10 puntos de discrepancia no se dice además "entre 5 y 10"');
+  // 5. Línea de goles convertida por la capa de datos
+  const conv = E.evalHouse({ name: 'DK', src: 'H', odds: { home: 2.0, draw: 3.4, away: 3.9, over25: null, under25: null, fairOver: 0.66, overLine: 3.5 } });
+  ok(conv.mOU && Math.abs(conv.mOU.probs[0] - 0.66) < 1e-12 && conv.mOU.overround === null, 'una casa con "más de 2,5" ya convertido entra al mercado de goles');
 }

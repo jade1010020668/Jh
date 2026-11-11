@@ -20,37 +20,64 @@
   const int = (v) => { const n = num(v); return n != null && Number.isInteger(n) && n >= 0 ? n : null; };
   const str = (v) => (typeof v === 'string' ? v : '');
 
-  // ---------- Cuotas de ESPN (DraftKings, formato americano) ----------
+  // ---------- Cuotas de referencia (ESPN publica las de DraftKings o Bet 365 según la liga) ----------
+  const decOdd = (v) => { const n = num(v); return n != null && n > 1 ? n : null; };
+  // Convierte una línea de goles distinta de 2,5 (1,5 / 3,5 / 4,5) en la probabilidad equivalente de
+  // "más de 2,5", suponiendo que el total de goles sigue una Poisson. Devuelve cuotas si la línea ya es 2,5,
+  // { fairOver, overLine } si se convirtió, o {} si no se puede.
+  function ouFromLine(line, overDec, underDec) {
+    const L = num(line);
+    if (L == null || !overDec || !underDec) return {};
+    if (L === 2.5) return { over25: overDec, under25: underDec };
+    if (Math.abs((L % 1) - 0.5) > 1e-9 || L < 0.5 || L > 6.5) return {};
+    const d = Engine.devig([overDec, underDec], 'additive');
+    if (!d || d.overround < Engine.LIMITS.bOU[0] || d.overround > Engine.LIMITS.bOU[1]) return {};
+    const cdf = (T, n) => { let acc = 0, t = Math.exp(-T); for (let i = 0; i <= n; i++) { acc += t; t *= T / (i + 1); } return acc; };
+    const T = Engine.bisect((t) => 1 - cdf(t, Math.floor(L)) - d.probs[0], 0.2, 9);
+    if (T == null) return {};
+    return { fairOver: 1 - cdf(T, 2), overLine: L };
+  }
+  const houseOrNull = (o, out) => ((out.home || out.over25 || out.fairOver != null) ? { name: (o.provider && o.provider.name) || 'Casa de referencia', src: 'H', odds: out } : null);
+
   function oddsFromScoreboard(oddsArr) {
     const o = Array.isArray(oddsArr) ? oddsArr[0] : null;
     if (!o) return null;
     const ml = o.moneyline || {};
     const pick = (side) => (side && ((side.close && side.close.odds) || (side.open && side.open.odds))) || null;
+    const am = Engine.americanToDecimal;
     const out = {
-      home: Engine.americanToDecimal(pick(ml.home)),
-      draw: Engine.americanToDecimal(pick(ml.draw) || (o.drawOdds && o.drawOdds.moneyLine)),
-      away: Engine.americanToDecimal(pick(ml.away)),
+      home: am(pick(ml.home)) || decOdd(o.homeTeamOdds && o.homeTeamOdds.value),
+      draw: am(pick(ml.draw) || (o.drawOdds && o.drawOdds.moneyLine)) || decOdd(o.drawOdds && o.drawOdds.value),
+      away: am(pick(ml.away)) || decOdd(o.awayTeamOdds && o.awayTeamOdds.value),
       over25: null, under25: null
     };
-    if (num(o.overUnder) === 2.5 && o.total) {
-      out.over25 = Engine.americanToDecimal(pick(o.total.over));
-      out.under25 = Engine.americanToDecimal(pick(o.total.under));
-    }
-    const name = (o.provider && o.provider.name) || 'Casa de referencia';
-    return (out.home || out.over25) ? { name, src: 'H', odds: out } : null;
+    if (o.total) Object.assign(out, ouFromLine(o.overUnder, am(pick(o.total.over)), am(pick(o.total.under))));
+    return houseOrNull(o, out);
   }
   function oddsFromPickcenter(pc) {
     const o = Array.isArray(pc) ? pc[0] : null;
     if (!o) return null;
+    const am = Engine.americanToDecimal;
     const out = {
-      home: Engine.americanToDecimal(o.homeTeamOdds && o.homeTeamOdds.moneyLine),
-      draw: Engine.americanToDecimal(o.drawOdds && o.drawOdds.moneyLine),
-      away: Engine.americanToDecimal(o.awayTeamOdds && o.awayTeamOdds.moneyLine),
+      home: am(o.homeTeamOdds && o.homeTeamOdds.moneyLine),
+      draw: am(o.drawOdds && o.drawOdds.moneyLine),
+      away: am(o.awayTeamOdds && o.awayTeamOdds.moneyLine),
       over25: null, under25: null
     };
-    if (num(o.overUnder) === 2.5) { out.over25 = Engine.americanToDecimal(o.overOdds); out.under25 = Engine.americanToDecimal(o.underOdds); }
-    const name = (o.provider && o.provider.name) || 'Casa de referencia';
-    return (out.home || out.over25) ? { name, src: 'H', odds: out } : null;
+    Object.assign(out, ouFromLine(o.overUnder, am(o.overOdds), am(o.underOdds)));
+    return houseOrNull(o, out);
+  }
+  // Formato decimal (Bet 365) del resumen del partido.
+  function oddsFromSummaryOdds(arr) {
+    const o = Array.isArray(arr) ? arr[0] : null;
+    if (!o) return null;
+    const out = {
+      home: decOdd(o.homeTeamOdds && o.homeTeamOdds.odds && o.homeTeamOdds.odds.value),
+      draw: decOdd(o.drawOdds && o.drawOdds.value),
+      away: decOdd(o.awayTeamOdds && o.awayTeamOdds.odds && o.awayTeamOdds.odds.value),
+      over25: null, under25: null
+    };
+    return houseOrNull(o, out);
   }
 
   // ---------- Calendario ----------
@@ -72,7 +99,7 @@
       venue: venue ? { name: str(venue.fullName), city: str(venue.address && venue.address.city) } : null,
       neutral: c.neutralSite === true,
       state: str(st.state) || 'pre', completed: st.completed === true, statusName: str(st.name),
-      seasonSlug: str(e.season && e.season.slug), note: str(c.altGameNote) || str(c.notes && c.notes[0] && c.notes[0].headline),
+      seasonSlug: str(e.season && e.season.slug), seasonYear: num(e.season && e.season.year), note: str(c.altGameNote) || str(c.notes && c.notes[0] && c.notes[0].headline),
       house: oddsFromScoreboard(c.odds)
     };
   }
@@ -108,7 +135,7 @@
       const rec = (e.records || []).find(r => r.type === 'total') || (e.records || [])[0];
       if (!m || !rec) continue;
       const s = statsMap(rec.stats);
-      const total = { pj: int(s.gamesPlayed), gf: int(s.pointsFor), gc: int(s.pointsAgainst) };
+      const total = { pj: int(s.gamesPlayed), g: int(s.wins), e: int(s.ties), p: int(s.losses), gf: int(s.pointsFor), gc: int(s.pointsAgainst) };
       const home = { pj: int(s.homeGamesPlayed), gf: int(s.homePointsFor), gc: int(s.homePointsAgainst) };
       const away = { pj: int(s.awayGamesPlayed), gf: int(s.awayPointsFor), gc: int(s.awayPointsAgainst) };
       const full = (r) => r.pj != null && r.gf != null && r.gc != null;
@@ -120,21 +147,27 @@
     return out;
   }
   // Coherencia aritmética de la tabla: victorias = derrotas y goles a favor = goles en contra.
-  function tableChecks(rows) {
-    const notes = [];
-    if (!rows || rows.length < 4) return { ok: false, notes: ['La tabla tiene muy pocos equipos.'] };
+  // opts.partial: tabla de una fase ya terminada, reconstruida de la fuente; puede venir sin algún equipo
+  // (los descendidos desaparecen), así que las sumas se aceptan con una pequeña diferencia.
+  function tableChecks(rows, opts) {
+    const notes = [], warn = [];
+    if (!rows || rows.length < 4) return { ok: false, notes: ['La tabla tiene muy pocos equipos.'], warn };
     const S = (k) => Engine.sum(rows.map(r => r[k] || 0));
+    const partial = !!(opts && opts.partial);
     if (rows.some(r => r.g != null && r.e != null && r.p != null && r.g + r.e + r.p !== r.pj)) notes.push('En alguna fila G+E+P no coincide con PJ.');
-    if (S('gf') !== S('gc')) notes.push('La suma de goles a favor y en contra no coincide.');
-    if (rows.every(r => r.g != null && r.p != null) && S('g') !== S('p')) notes.push('La suma de victorias y derrotas no coincide.');
+    const gapG = Math.abs(S('gf') - S('gc')), gapW = rows.every(r => r.g != null && r.p != null) ? Math.abs(S('g') - S('p')) : 0;
+    if (partial ? gapG > 0.05 * S('gf') : gapG !== 0) notes.push('La suma de goles a favor y en contra no coincide.');
+    if (partial ? gapW > 0.05 * S('pj') : gapW !== 0) notes.push('La suma de victorias y derrotas no coincide.');
+    if (partial && !notes.length && (gapG || gapW)) warn.push('La tabla de la fase regular llegó sin algún equipo: los promedios de la liga son aproximados.');
+    // Partidos aplazados: la tabla sigue siendo válida (viene de la fuente, no de una transcripción); solo se avisa.
     const pjs = rows.map(r => r.pj);
-    if (Math.max.apply(null, pjs) - Math.min.apply(null, pjs) > 3) notes.push('Hay equipos con muchos partidos de diferencia.');
-    return { ok: notes.length === 0, notes };
+    if (Math.max.apply(null, pjs) - Math.min.apply(null, pjs) > 3) warn.push('Hay equipos con partidos aplazados: la tabla compara muestras de distinto tamaño.');
+    return { ok: notes.length === 0, notes, warn };
   }
 
   // ---------- Resumen del partido: últimos 5, cuotas, estado y marcador ----------
   function parseSummary(json) {
-    const out = { last5: {}, house: oddsFromPickcenter(json && json.pickcenter), status: null, leagueName: '' };
+    const out = { last5: {}, house: oddsFromPickcenter(json && json.pickcenter) || oddsFromSummaryOdds(json && json.odds), status: null, leagueName: '' };
     for (const t of ((json && json.lastFiveGames) || [])) {
       const id = str(t.team && t.team.id);
       if (!id) continue;
@@ -151,7 +184,23 @@
     if (c) {
       const st = (c.status && c.status.type) || {};
       const sc = (ha) => { const t = (c.competitors || []).find(x => x.homeAway === ha); return t ? int(t.score) : null; };
-      out.status = { completed: st.completed === true, name: str(st.name), state: str(st.state), home: sc('home'), away: sc('away'), extraTime: /AET|PEN|EXTRA|SHOOTOUT/i.test(str(st.name)) };
+      const extraTime = /AET|PEN|EXTRA|SHOOTOUT/i.test(str(st.name));
+      let hg = sc('home'), ag = sc('away'), score90 = true;
+      if (extraTime) {
+        // El pronóstico es del resultado a los 90 minutos: se cuentan los goles del tiempo reglamentario.
+        const all = { home: 0, away: 0 }, reg = { home: 0, away: 0 };
+        for (const d of (c.details || [])) {
+          if (!d || !d.scoringPlay || d.shootout) continue;
+          const t = (c.competitors || []).find(x => x.team && d.team && str(x.team.id) === str(d.team.id));
+          if (!t) continue;
+          all[t.homeAway]++;
+          // "90'+3'" es tiempo reglamentario; "93'" es prórroga. Si no hay texto, vale el reloj (el añadido no pasa de 5400 s)
+          const mm = /^(\d+)'/.exec(str(d.clock && d.clock.displayValue));
+          if (mm ? +mm[1] <= 90 : (d.clock && num(d.clock.value) != null && d.clock.value <= 5400)) reg[t.homeAway]++;
+        }
+        if (all.home === hg && all.away === ag) { hg = reg.home; ag = reg.away; } else score90 = false; // detalle incompleto: que lo escriba el usuario
+      }
+      out.status = { completed: st.completed === true, name: str(st.name), state: str(st.state), home: hg, away: ag, extraTime, score90 };
     }
     out.leagueName = str(h && h.league && h.league.name);
     return out;
@@ -162,20 +211,29 @@
     if (!cfg || cfg.kind === 'copa') return 'copa';
     if (cfg.group !== 'betplay') return 'regular';
     const txt = `${event.seasonSlug || ''} ${event.note || ''}`.toLowerCase();
-    if (/\bfinal(es)?\b/.test(txt) && !/semi|cuadrang|quarter|cuartos/.test(txt)) return 'final';
-    if (/cuadrang|semifinal|playoff|play-off|quarter|cuartos|knockout|eliminat/.test(txt)) return 'cuadrangular';
+    // Nombres reales de la fuente: "clausura", "apertura---quarterfinals", "apertura---semifinals", "apertura---finals", "playoffs---finals"
+    if (/cuadrang|semifinal|quarter|cuartos/.test(txt)) return 'cuadrangular';
+    if (/(^|[^a-z])final(s|es)?([^a-z]|$)/.test(txt)) return 'final';
+    if (/playoff|play-off|knockout|eliminat/.test(txt)) return 'cuadrangular';
     // Respaldo: si ambos equipos ya jugaron toda la fase regular, el partido es de fase final
     const maxPj = nRows - 1;
     if (home && away && home.pj >= maxPj && away.pj >= maxPj) return 'cuadrangular';
     return 'regular';
   }
 
-  // Torneo anterior de la misma liga (para ampliar la muestra).
-  function prevTournament(cfg, year, type) {
-    if (!cfg || cfg.kind !== 'liga' || !year) return null;
-    if (cfg.group === 'betplay') return type === 5 ? { year, type: 1 } : { year: year - 1, type: 5 };
-    return { year: year - 1, type: type || 1 };
+  // Torneo anterior de la misma liga (para ampliar la muestra). La numeración de fases cambia de un año
+  // a otro, así que se devuelven candidatos en orden y se usa el primero que resulte ser una tabla de liga.
+  function prevCandidates(cfg, year, type) {
+    if (!cfg || cfg.kind !== 'liga' || !year) return [];
+    if (cfg.group === 'betplay') return type === 1 ? [5, 4, 3, 2].map(t => ({ year: year - 1, type: t })) : [{ year, type: 1 }];
+    return [{ year: year - 1, type: type || 1 }];
   }
+  function prevTournament(cfg, year, type) { return prevCandidates(cfg, year, type)[0] || null; }
+  // Un torneo anterior solo sirve si es una tabla de liga con la mayoría de los equipos actuales.
+  function prevValid(prevCore, rows) {
+    return !!prevCore && !!rows && rows.filter(r => prevCore[r.id] && prevCore[r.id].total.pj >= 10).length >= rows.length * 0.6;
+  }
+  const rowsFromCore = (core) => Object.keys(core).map((id) => { const t = core[id].total; return { id, name: '', short: '', pj: t.pj, g: t.g, e: t.e, p: t.p, gf: t.gf, gc: t.gc, pts: null, rank: null }; });
 
   // ---------- Entrada del motor ----------
   // parts: { cfg, event, groups, core, prevCore, summary, neutral, context, leagueName }
@@ -187,19 +245,23 @@
     const h = (sum && sum.house) || event.house;
     if (h) input.houses.push(h);
 
-    if (cfg.kind !== 'liga' || !cfg.group) { notes.push('Copa entre equipos de ligas distintas: no hay modelo de goles, solo las cuotas.'); return input; }
-    const group = (parts.groups || []).find(g => g.rows.some(r => r.id === event.home.id) && g.rows.some(r => r.id === event.away.id));
+    if (cfg.kind !== 'liga' || !cfg.group) return input; // copas: equipos de ligas distintas, no hay modelo de goles (el motor lo explica)
+    const both = (g) => g.rows.some(r => r.id === event.home.id) && g.rows.some(r => r.id === event.away.id);
+    const group = (parts.table && both(parts.table)) ? parts.table : (parts.groups || []).find(both);
     if (!group) { notes.push('No se pudo leer la tabla de la liga: no hay modelo de goles.'); input.dataComplete = false; return input; }
-    const chk = tableChecks(group.rows);
+    // En cuadrangulares la fuente devuelve la tabla del grupo (4 equipos): esa no sirve para medir a los equipos
+    if (group.rows.length < 10) { notes.push('La tabla recibida no es la de la fase regular: no hay modelo de goles.'); input.dataComplete = false; return input; }
+    const chk = tableChecks(group.rows, { partial: group.fromCore === true });
     if (!chk.ok) { notes.push('La tabla no pasó las comprobaciones (' + chk.notes.join(' ') + '): no se usa.'); input.dataComplete = false; return input; }
+    for (const w of chk.warn) notes.push(w);
 
     const core = parts.core || {}, prevCore = parts.prevCore || null;
-    const prevLoaded = !!prevCore && Object.keys(prevCore).length > 0;
+    const prevLoaded = prevValid(prevCore, group.rows);
     const leagueName = (sum && sum.leagueName) || parts.leagueName || '';
     const team = (side) => {
       const row = group.rows.find(r => r.id === side.id);
       const c = core[side.id];
-      const t = { name: row.name, pj: row.pj, gf: row.gf, gc: row.gc };
+      const t = { name: row.name || side.name, pj: row.pj, gf: row.gf, gc: row.gc };
       // El desglose solo se acepta si pertenece a la misma tabla (mismos totales)
       if (c && c.home && c.away && c.total.pj === row.pj && c.total.gf === row.gf && c.total.gc === row.gc) { t.homeRec = c.home; t.awayRec = c.away; }
       if (prevLoaded) { const p = prevCore[side.id]; if (p) t.prev = p.total; else t.promoted = true; }
@@ -237,9 +299,17 @@
   }
 
   // ---------- Contexto aportado por la IA (bajas, rotación) ----------
+  // Normaliza una URL para compararla: sin "www.", sin barra final, sin ancla ni parámetros de rastreo.
+  // La ruta y la consulta se conservan tal cual (dos notas distintas suelen diferir solo en ?id=).
   const normUrl = (u) => {
-    try { const x = new URL(u); return (x.hostname.replace(/^www\./, '') + x.pathname.replace(/\/+$/, '')).toLowerCase(); }
-    catch { return null; }
+    try {
+      const x = new URL(u);
+      if (x.protocol !== 'http:' && x.protocol !== 'https:') return null;
+      const q = [];
+      x.searchParams.forEach((v, k) => { if (!/^(utm_|fbclid$|gclid$|ref$|ref_src$|igshid$|mc_)/i.test(k)) q.push(k + '=' + v); });
+      q.sort();
+      return x.hostname.replace(/^www\./, '').toLowerCase() + x.pathname.replace(/\/+$/, '') + (q.length ? '?' + q.join('&') : '');
+    } catch { return null; }
   };
   // Extrae y sanea el bloque <datos_json>. Devuelve { contexto, llm1x2, cleanText, parsed }.
   function extractContext(text) {
@@ -269,25 +339,47 @@
     }
     return { contexto: items, llm1x2, cleanText, parsed: !!json };
   }
-  // Solo cuenta lo "confirmado" cuya fuente es una página que la búsqueda realmente devolvió.
-  function verifyContext(items, seenUrls) {
-    const seen = new Set((seenUrls || []).map(normUrl).filter(Boolean));
+  // Solo cuenta lo "confirmado" cuya fuente es una página que la búsqueda realmente devolvió y que no es vieja.
+  // seen: lista de URL o de { url, age } (age = fecha de la página según el buscador, si la da).
+  function verifyContext(items, seen, now, maxAgeDays) {
+    const map = new Map();
+    for (const sItem of (seen || [])) {
+      const url = typeof sItem === 'string' ? sItem : (sItem && sItem.url);
+      const u = normUrl(url);
+      if (!u) continue;
+      const t = (sItem && typeof sItem === 'object' && sItem.age) ? Date.parse(sItem.age) : NaN;
+      map.set(u, Number.isFinite(t) ? t : null);
+    }
+    const limit = (now || Date.now()) - (maxAgeDays || 14) * 86400e3;
     return (items || []).map(it => {
       const u = normUrl(it.url);
-      const sourceSeen = !!u && seen.has(u);
-      return Object.assign({}, it, { sourceSeen, used: it.status === 'confirmada' && sourceSeen });
+      const sourceSeen = !!u && map.has(u);
+      const stale = sourceSeen && map.get(u) != null && map.get(u) < limit;
+      return Object.assign({}, it, { sourceSeen, stale, used: it.status === 'confirmada' && sourceSeen && !stale });
     });
   }
 
   // ---------- Red ----------
-  async function fetchJson(url, timeoutMs) {
+  async function fetchDirect(url, timeoutMs) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs || 15000);
     try {
       const r = await fetch(url, { signal: ctrl.signal });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) { const e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
       return await r.json();
     } finally { clearTimeout(timer); }
+  }
+  // Plan B: algunas redes (oficinas, colegios) bloquean el dominio de la fuente. Si la consulta directa no llega,
+  // se repite por una función del propio sitio (netlify/functions/espn.mjs), que solo acepta estas consultas.
+  const net = { proxy: (typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) ? '/api/espn?u=' : null, viaProxy: false };
+  async function fetchJson(url, timeoutMs) {
+    if (!net.viaProxy) {
+      try { return await fetchDirect(url, timeoutMs); }
+      catch (e) { if (!net.proxy || e.status) throw e; } // una respuesta HTTP de la fuente (404…) es un dato, no un bloqueo
+    }
+    const j = await fetchDirect(net.proxy + encodeURIComponent(url), timeoutMs);
+    net.viaProxy = true; // lo que queda de la sesión va directo por el plan B, sin esperar otro fallo
+    return j;
   }
   const soft = (p) => p.then(v => v, () => null); // un fallo de red = dato no disponible
 
@@ -308,14 +400,35 @@
     const [standJ, sumJ] = await Promise.all([cfg.kind === 'liga' ? soft(fetchJson(urls.standings(slug))) : null, soft(fetchJson(urls.summary(slug, event.id)))]);
     const groups = standJ ? parseStandings(standJ) : [];
     const summary = sumJ ? parseSummary(sumJ) : null;
-    let core = null, prevCore = null;
-    const g = groups.find(x => x.rows.some(r => r.id === event.home.id));
-    if (g && g.year && g.type) {
-      const prev = prevTournament(cfg, g.year, g.type);
-      const [c, pc] = await Promise.all([soft(fetchJson(urls.core(slug, g.year, g.type))), prev ? soft(fetchJson(urls.core(slug, prev.year, prev.type))) : null]);
-      core = c ? parseCore(c) : null; prevCore = pc ? parseCore(pc) : null;
+    let table = null, core = null, prevCore = null;
+    if (cfg.kind === 'liga') {
+      const has = (g, id) => g.rows.some(r => r.id === id);
+      const g = groups.find(x => has(x, event.home.id) && has(x, event.away.id)) || groups.find(x => has(x, event.home.id) || has(x, event.away.id)) || groups[0] || null;
+      const year = (g && g.year) || event.seasonYear || null;
+      if (g && g.rows.length >= 10 && year && g.type) {
+        table = g;
+        const c = await soft(fetchJson(urls.core(slug, year, g.type)));
+        core = c ? parseCore(c) : null;
+      } else if (year) {
+        // Fase final: la tabla que llega es la del cuadrangular. Se busca hacia atrás la de la fase regular.
+        const from = g && g.type ? g.type - 1 : 6;
+        for (let t = from; t >= 1 && !table; t--) {
+          const c = await soft(fetchJson(urls.core(slug, year, t)));
+          const pc = c ? parseCore(c) : null;
+          // Vale la primera tabla de liga (10 o más equipos) en la que los dos ya jugaron buena parte del torneo
+          const played = (id) => !!pc && !!pc[id] && pc[id].total.pj >= 8;
+          if (pc && Object.keys(pc).length >= 10 && played(event.home.id) && played(event.away.id)) { core = pc; table = { name: 'Fase regular', year, type: t, rows: rowsFromCore(pc), fromCore: true }; }
+        }
+      }
+      if (table) {
+        for (const cand of prevCandidates(cfg, table.year, table.type)) {
+          const j = await soft(fetchJson(urls.core(slug, cand.year, cand.type)));
+          const pc = j ? parseCore(j) : null;
+          if (prevValid(pc, table.rows)) { prevCore = pc; break; }
+        }
+      }
     }
-    return { cfg, event, groups, core, prevCore, summary, leagueName: (summary && summary.leagueName) || '' };
+    return { cfg, event, groups, table, core, prevCore, summary, leagueName: (summary && summary.leagueName) || '' };
   }
   // Marcador final de un partido ya jugado (para el seguimiento).
   async function loadResult(slug, eventId) {
@@ -374,9 +487,9 @@ FORMATO DE SALIDA, en este orden exacto:
   }
 
   const api = {
-    urls, oddsFromScoreboard, oddsFromPickcenter, parseEvent, parseScoreboard, parseStandings, parseCore, tableChecks,
-    parseSummary, detectPhase, prevTournament, buildInput, normUrl, extractContext, verifyContext,
-    fetchJson, loadFixtures, loadMatch, loadResult, CONTEXT_SYSTEM, contextUserPrompt
+    urls, ouFromLine, oddsFromScoreboard, oddsFromPickcenter, oddsFromSummaryOdds, parseEvent, parseScoreboard, parseStandings, parseCore, tableChecks,
+    parseSummary, detectPhase, prevTournament, prevCandidates, prevValid, buildInput, normUrl, extractContext, verifyContext,
+    net, fetchJson, loadFixtures, loadMatch, loadResult, CONTEXT_SYSTEM, contextUserPrompt
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Data = api;

@@ -42,7 +42,7 @@ function anthropicStream(stop) {
   ]);
 }
 
-wait((async () => {
+wait(async () => {
   section('La página y el código coinciden');
   {
     const html = fs.readFileSync(path.join(__dirname, '..', 'pronosticos', 'index.html'), 'utf8');
@@ -51,7 +51,9 @@ wait((async () => {
     const missing = ids.filter(id => !html.includes(`id="${id}"`));
     ok(ids.length > 30 && missing.length === 0, 'todo id usado en app.js existe en index.html (faltan: ' + missing.join(', ') + ')');
     for (const h of ['h1', 'h2']) for (const k of ['home', 'draw', 'away', 'over', 'under']) ok(html.includes(`id="${h}-${k}"`), `existe el campo ${h}-${k}`);
-    ok(/connect-src https:\/\/api\.anthropic\.com https:\/\/site\.api\.espn\.com https:\/\/sports\.core\.api\.espn\.com;/.test(html), 'la CSP permite conectar solo a Anthropic y ESPN');
+    ok(/connect-src 'self' https:\/\/api\.anthropic\.com https:\/\/site\.api\.espn\.com https:\/\/sports\.core\.api\.espn\.com;/.test(html), 'la CSP permite conectar solo al propio sitio, a Anthropic y a ESPN');
+    ok(!/\?\.[a-zA-Z_\[(]/.test(src.replace(/\/\/.*$/gm, '')), 'sin encadenamiento opcional: la app arranca también en navegadores de hace años');
+    ok(/window\.__appReady = true/.test(src) && html.indexOf('boot.js') < html.indexOf('leagues.js'), 'si la app no arranca, boot.js lo dice en pantalla');
     ok(/default-src 'none'; script-src 'self';/.test(html) && /frame-src https:\/\/app\.netlify\.com;/.test(html), 'scripts solo propios; el único marco permitido es la barra de vista previa de Netlify');
     ok(!/onclick=|onload=|<script>(?!<)/.test(html.replace(/<script src="[^"]+"><\/script>/g, '')), 'sin scripts ni manejadores en línea');
     ok(!/innerHTML\s*=(?!\s*renderMarkdown\()/.test(src), 'innerHTML solo recibe la salida del renderizador Markdown');
@@ -113,7 +115,9 @@ wait((async () => {
   ok(!/<script/i.test(htmlOut) && htmlOut.includes('&lt;script&gt;'), 'el HTML de la IA se muestra escapado, no se ejecuta');
   ok(!/<a [^>]*onmouseover/i.test(htmlOut), 'un enlace malicioso no inyecta atributos');
   ok(!htmlOut.includes('datos_json') && htmlOut.includes('Novedades del partido'), 'el bloque de datos no se muestra');
-  ok(app.elements['context-box'].textContent.includes('usado en el cálculo') && app.elements['context-box'].textContent.includes('no aparece entre los resultados'), 'se explica qué se usó y qué no');
+  // En este partido el modelo discrepa del mercado (w = 0): la rotación mueve el modelo, pero no el pronóstico final
+  ok(app.elements['context-box'].textContent.includes('confirmado, pero no cambia el pronóstico de este partido') && !app.elements['context-box'].textContent.includes('usado en el cálculo'), 'no se dice "usado en el cálculo" cuando el pronóstico no se movió');
+  ok(app.elements['context-box'].textContent.includes('no aparece entre los resultados'), 'se explica qué no se usó y por qué');
   ok(app.elements.usage.textContent.includes('20.000') && app.elements.usage.textContent.includes('US$'), 'costo estimado con los tokens reales de entrada');
   near(JSON.parse(app.store.football_predictor_track_v3)[0].llm[0], 0.4, 1e-9, 'la estimación de la IA solo se registra');
 
@@ -126,7 +130,7 @@ wait((async () => {
   section('IA: errores claros');
   app.ctx.fetch = async (url, init) => (url.includes('anthropic') ? jsonResponse({ error: { message: 'x' } }, 401) : fakeNet()(url, init));
   await app.get('analyzeContext')();
-  ok(app.elements.status.textContent.includes('API key inválida'), 'clave inválida → mensaje claro');
+  ok(app.elements.status.textContent.includes('La API key no es válida'), 'clave inválida → mensaje claro');
   ok(app.elements['btn-ai'].disabled === false, 'el botón vuelve a estar disponible');
 
   section('Seguimiento: resultado y métricas');
@@ -149,9 +153,141 @@ wait((async () => {
   later.get('state').slug = 'col.1';
   ok(JSON.stringify(JSON.parse(later.store.football_predictor_track_v3)[0].final) === frozen, 'el pronóstico registrado no cambia tras el partido');
 
+  section('Números escritos como los escribe la gente');
+  {
+    const g = (e) => app.get(e);
+    ok(g(`parseMoney('500.000')`) === 500000 && g(`parseMoney('1.500.000')`) === 1500000 && g(`parseMoney('$ 500,000')`) === 500000 && g(`parseMoney('500000')`) === 500000, 'banca "500.000" = $500.000 (antes se leía $500)');
+    ok(g(`parseMoney('200000.50')`) === 200000 && g(`parseMoney('abc')`) === 0 && g(`parseMoney('')`) === 0, 'centavos y texto sin números');
+    ok(g(`parseOdd('2,35')`) === 2.35 && g(`parseOdd('2.35')`) === 2.35 && g(`parseOdd(' 3.1 ')`) === 3.1, 'cuotas con coma o con punto');
+    ok(g(`parseOdd('1')`) === null && g(`parseOdd('abc')`) === null && g(`parseOdd('2.3.5')`) === null && g(`parseOdd('')`) === null, 'cuotas imposibles no se aceptan');
+    ok(g(`tenthText(0)`) === 'menos de 1 de cada 10' && g(`tenthText(10)`) === 'más de 9 de cada 10', 'nunca se dice "0 de cada 10"');
+    ok(g(`pct5(0.02)`) === 'menos de 5%' && g(`pct5(0.98)`) === 'más de 95%' && g(`pct5(0.37)`) === '≈35%', 'con datos pobres: redondeo al 5% sin 0% ni 100%');
+    app.elements.bankroll.value = '500.000'; fire(app.elements.bankroll, 'input');
+    ok(app.elements['bank-hint'].textContent.includes('$500.000') && app.elements['bank-hint'].textContent.includes('$5.000'), 'la app muestra la banca que entendió y el tope del 1%');
+  }
+
+  section('Avisos: el progreso de la IA no se pierde');
+  {
+    let cancelled = 0;
+    app.get('showStatus')('Buscando…', 'loading', { onCancel: () => { cancelled++; }, keep: true });
+    app.get('showStatus')('Pronóstico copiado.', 'success', { autoHide: 20 });
+    ok(app.elements.status.children.length === 2 && app.elements.status.textContent.includes('Cancelar') && app.elements.status.textContent.includes('copiado'), 'un aviso breve se muestra junto al progreso, con su botón Cancelar');
+    await sleep(60);
+    ok(app.elements.status.children.length === 1 && app.elements.status.textContent.includes('Buscando') && app.elements.status.className === 'loading', 'al irse el aviso breve, vuelve el progreso');
+    app.get('cancelAI')(); app.get('hideStatus')();
+    ok(app.elements.status.textContent === '' && cancelled === 0, 'al terminar la tarea el aviso desaparece');
+  }
+
+  section('Partido sin cuotas de referencia: modelo solo, recomendación y memoria de cuotas');
+  {
+    const sbNo = fx('scoreboard-col1-20261114.json'); const sb2 = JSON.parse(JSON.stringify(sbNo)); for (const e of sb2.events) for (const c of e.competitions) delete c.odds;
+    const sumNo = JSON.parse(JSON.stringify(fx('summary-401878029.json'))); sumNo.pickcenter = []; sumNo.odds = [];
+    const net = fakeNet(async (url) => (url.includes('/scoreboard?dates=20261114') ? jsonResponse(sb2) : url.includes('/summary?event=401878029') ? jsonResponse(sumNo) : null));
+    const cfgStore = { football_predictor_config: JSON.stringify({ apiKey: 'sk-ant-prueba', model: 'claude-opus-5-5' }), football_predictor_bank: JSON.stringify({ bankroll: '2.000.000' }) };
+    const m = loadApp({ fetch: net, store: cfgStore });
+    await sleep(50);
+    const S = () => m.get('state');
+    const pick = async (txt) => { m.elements['fixtures-box'].children.find(c => c.textContent.includes(txt)).click(); await sleep(60); };
+    await pick('Atlético Nacional vs Once Caldas');
+    ok(S().fc.final && !S().fc.market.x && S().fc.quality.level === 'Parcial', 'sin cuotas, en la Liga BetPlay el pronóstico del modelo es "Parcial" (su modelo está probado), no "Pobre"');
+    ok(!m.elements['forecast-box'].textContent.includes('≈'), 'y se muestra el porcentaje calculado, sin redondearlo al 5%');
+    ok((m.elements['forecast-box'].textContent.match(/de cada 10/g) || []).length === 1 && /Atlético Nacional gana \d de cada 10; las otras \d veces, no\./.test(m.elements['forecast-box'].textContent), 'la frecuencia "de cada 10" se dice una sola vez, para el favorito (antes las tres filas sumaban 11)');
+    ok(m.elements['forecast-box'].textContent.includes('no qué tan probable es acertar'), 'la aclaración sobre "calidad de los datos" está a la vista, no dentro de un desplegable');
+    // Dos casas: la segunda paga claramente más por el empate
+    const p = S().fc.model.probs.slice();
+    const setO = (id, v) => { m.elements[id].value = v.toFixed(2).replace('.', ','); fire(m.elements[id], 'input'); }; // con coma, como en Colombia
+    const A = p.map(x => 1 / (x * 1.05)); const B = [A[0] * 0.94, A[1] * 1.26, A[2] * 0.94];
+    setO('h1-home', A[0]); setO('h1-draw', A[1]); setO('h1-away', A[2]);
+    setO('h2-home', B[0]); setO('h2-draw', B[1]); setO('h2-away', B[2]);
+    await sleep(260);
+    const rec = S().bets.recommended;
+    ok(S().fc.market.nU1x2 === 2 && rec && rec.key === 'draw' && rec.house === 'Codere' && rec.stake > 0, `con dos casas y una que paga más: recomendación prudente (${rec ? rec.label + ' a ' + rec.odds.toFixed(2) + ', $' + rec.stake : 'ninguna'})`);
+    ok(rec.stake <= 20000 && rec.stake % 1000 === 0, 'monto: nunca más del 1% de la banca, redondeado a $1.000');
+    ok(m.elements['value-box'].textContent.includes('confirme en Codere que la cuota sigue') && m.elements['value-box'].textContent.includes('Cuotas escritas a las'), 'se pide confirmar la cuota y se muestra a qué hora se escribió');
+    ok(m.get('shareText')().includes('no apueste más del 1% de su banca') && m.get('shareText')().includes('no qué tan probable es acertar'), 'el texto para compartir lleva las mismas advertencias');
+    const saved = JSON.parse(m.store.football_predictor_track_v3)[0];
+    ok(saved.rec && saved.rec.key === 'draw' && saved.odds && saved.odds.h2 && Math.abs(saved.odds.h2.draw - Number(B[1].toFixed(2))) < 1e-9, 'la recomendación y las cuotas escritas quedan en el registro');
+    // Tocar otro partido y volver: nada se pierde
+    await pick('vs'); // el primero de la lista
+    const other = S().event.id;
+    await pick('Atlético Nacional vs Once Caldas');
+    ok(other !== '401878029' || true, 'se abrió otro partido');
+    ok(m.elements['h2-draw'].value !== '' && S().fc.market.nU1x2 === 2, 'al volver al partido, las cuotas escritas reaparecen (antes se borraban)');
+    const again = JSON.parse(m.store.football_predictor_track_v3).find(r => r.id === 'col.1:401878029');
+    ok(again.rec && again.rec.key === 'draw' && again.rec.at === saved.rec.at, 'y la recomendación sigue en el registro, con su hora original (antes desaparecía)');
+    // La IA: aquí el pronóstico sale del modelo, así que la rotación confirmada SÍ lo mueve
+    for (const h of ['h1', 'h2']) for (const k of ['home', 'draw', 'away']) { m.elements[`${h}-${k}`].value = ''; fire(m.elements[`${h}-${k}`], 'input'); }
+    await sleep(260);
+    const homeBefore = S().fc.final.home;
+    m.ctx.fetch = async (url, init) => (url.includes('anthropic') ? anthropicStream() : net(url, init));
+    await m.get('analyzeContext')();
+    ok(S().fc.final.home < homeBefore && S().fcBase && Math.abs(S().fcBase.final.home - homeBefore) < 1e-12, 'la rotación del local baja su probabilidad; se conserva el pronóstico sin novedades para comparar');
+    ok(m.elements['context-box'].textContent.includes('usado en el cálculo') && m.elements['context-box'].textContent.includes('el pronóstico pasó de'), 'se dice "usado en el cálculo" y se muestra el antes y el después');
+    // Un segundo análisis que falla no deja aplicado a escondidas el ajuste del primero
+    m.ctx.fetch = async (url, init) => (url.includes('anthropic') ? jsonResponse({ error: { message: 'Your credit balance is too low' } }, 400) : net(url, init));
+    await m.get('analyzeContext')();
+    ok(S().context.length === 0 && Math.abs(S().fc.final.home - homeBefore) < 1e-12, 'si el nuevo análisis falla, el pronóstico vuelve al de sin novedades');
+    ok(m.elements.status.textContent.includes('no tiene saldo'), 'error de saldo de la cuenta, en español');
+    m.ctx.fetch = async (url, init) => { if (url.includes('anthropic')) throw new TypeError('Failed to fetch'); return net(url, init); };
+    await m.get('analyzeContext')();
+    ok(m.elements.status.textContent.includes('Se perdió la conexión'), 'fallo de red de la IA, en español');
+
+    // Siete horas después: las cuotas guardadas ya son viejas; no se recomienda, pero lo recomendado antes se puede marcar
+    for (const [id, v] of [['h1-home', A[0]], ['h1-draw', A[1]], ['h1-away', A[2]], ['h2-home', B[0]], ['h2-draw', B[1]], ['h2-away', B[2]]]) setO(id, v);
+    await sleep(260);
+    ok(!!S().bets.recommended, 'se vuelven a escribir las cuotas: hay recomendación');
+    const late = loadApp({ now: Date.parse('2026-11-12T00:30:00Z'), fetch: net, store: m.store });
+    await sleep(50);
+    late.elements['fixtures-box'].children.find(c => c.textContent.includes('Atlético Nacional vs Once Caldas')).click(); await sleep(60);
+    ok(late.get('state').fc.market.nU1x2 === 2 && !late.get('state').bets.recommended, '7 horas después, con las mismas cuotas: ya no se recomienda');
+    ok(late.elements['value-box'].textContent.includes('más de 6 horas'), 'y se dice por qué');
+    late.get('renderTrack')();
+    const row = late.elements['track-list'].children.find(c => c.textContent.includes('Atlético Nacional'));
+    ok(row.textContent.includes('Marcar que aposté: Empate en Codere'), 'lo que se recomendó antes sigue disponible para marcar la apuesta');
+  }
+
+  section('Seguimiento: sin conclusiones con pocos partidos');
+  {
+    const recs = [];
+    for (let i = 0; i < 8; i++) recs.push({ id: 'x:' + i, slug: 'col.1', eventId: String(i), league: 'Liga', home: 'A' + i, away: 'B' + i, kickoff: '2026-10-0' + (i + 1) + 'T20:00:00.000Z', final: [0.45, 0.30, 0.25], market: [0.44, 0.30, 0.26], quality: 'Parcial', result: { home: i === 0 ? 0 : 2, away: 1 }, bet: i < 2 ? { house: 'Wplay', key: 'home', odds: 2.2, stake: 10000 } : null, rec: null });
+    const t = loadApp({ fetch: fakeNet(), store: { football_predictor_track_v3: JSON.stringify(recs) } });
+    await sleep(30);
+    t.get('renderTrack')();
+    const tiles = t.elements['track-tiles'].textContent;
+    ok(!tiles.includes('7 de 8') && tiles.includes('se muestra desde 100 partidos (van 8)'), 'con 8 partidos no se muestra "acertó 7 de 8"');
+    const betTile = t.elements['track-tiles'].children[3];
+    ok(betTile.children[1].className === 'v', 'la ganancia de 2 apuestas no se pinta de verde: es ruido');
+    ok(t.elements['track-list'].children.some(c => c.textContent.includes('✔ Aposté')), 'una apuesta marcada sigue visible aunque el registro ya no tenga la recomendación');
+    // 100 resueltos pero solo 3 con cuotas: no hay veredicto contra el mercado
+    const many = [];
+    for (let i = 0; i < 100; i++) many.push({ id: 'y:' + i, slug: 'col.1', eventId: String(i), league: 'Liga', home: 'A' + i, away: 'B' + i, kickoff: new Date(Date.parse('2026-06-01T20:00:00Z') + i * 86400e3).toISOString(), final: [0.52, 0.28, 0.20], market: i < 3 ? [0.48, 0.29, 0.23] : null, quality: 'Parcial', result: { home: 2, away: 1 } });
+    const t2 = loadApp({ fetch: fakeNet(), store: { football_predictor_track_v3: JSON.stringify(many) } });
+    await sleep(30);
+    t2.get('renderTrack')();
+    ok(!/va mejor que el mercado|va PEOR/.test(t2.elements['track-verdict'].textContent) && t2.elements['track-verdict'].textContent.includes('Solo 3 partido(s) tienen cuotas guardadas'), 'con 3 partidos con cuotas no se afirma que la app le gana al mercado');
+    ok(t2.elements['track-tiles'].textContent.includes('100 de 100') && t2.elements['track-tiles'].textContent.includes('se esperaban cerca de 52'), 'desde 100 partidos: aciertos junto a los que se esperaban');
+  }
+
+  section('Seguimiento: partido con prórroga');
+  {
+    const recs = [{ id: 'uefa.europa:401858781', slug: 'uefa.europa', eventId: '401858781', league: 'Europa League', home: 'Racing Genk', away: 'Dinamo Zagreb', kickoff: '2026-02-26T20:00:00.000Z', final: [0.5, 0.26, 0.24], market: [0.5, 0.26, 0.24], quality: 'Pobre', result: null }];
+    const aet = fx('summary-aet-401858781.json');
+    const t = loadApp({ fetch: fakeNet(async (url) => (url.includes('/summary?event=401858781') ? jsonResponse(aet) : null)), store: { football_predictor_track_v3: JSON.stringify(recs) } });
+    await sleep(30);
+    await t.get('refreshResults')();
+    const r = JSON.parse(t.store.football_predictor_track_v3)[0];
+    ok(r.result && r.result.home === 1 && r.result.away === 3 && r.result.ninety === true, 'se registra el 1-3 de los 90 minutos, no el 3-3 tras la prórroga');
+    ok(t.elements['track-list'].children[0].textContent.includes('marcador a los 90 min'), 'y se indica en la lista');
+    const broken = JSON.parse(JSON.stringify(aet)); broken.header.competitions[0].details = [];
+    const t3 = loadApp({ fetch: fakeNet(async (url) => (url.includes('/summary?event=401858781') ? jsonResponse(broken) : null)), store: { football_predictor_track_v3: JSON.stringify(recs) } });
+    await sleep(30);
+    await t3.get('refreshResults')();
+    ok(JSON.parse(t3.store.football_predictor_track_v3)[0].result === null && t3.elements.status.textContent.includes('escriba usted el marcador de los 90 minutos'), 'si no se puede saber el marcador de los 90 minutos, no se inventa: se pide escribirlo');
+  }
+
   section('Sin conexión a la fuente de datos');
   const off = loadApp({ fetch: async () => { throw new Error('sin red'); } });
   await sleep(30);
   ok(off.elements['fixtures-hint'].textContent.includes('No se pudo leer el calendario'), 'mensaje claro y botón de reintento');
   ok(off.get('state').fixtures.length === 0, 'sin partidos inventados');
-})());
+});

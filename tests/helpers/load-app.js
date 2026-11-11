@@ -13,7 +13,7 @@ function makeElement(tag) {
     set textContent(v) { this._text = String(v); this.children = []; this._html = ''; },
     get innerHTML() { return this._html; },
     set innerHTML(v) { this._html = String(v); this.children = []; this._text = ''; },
-    classList: { add() {}, remove() {}, contains() { return false; } },
+    classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } }, dataset: {},
     addEventListener(type, fn) { (el._l[type] = el._l[type] || []).push(fn); },
     appendChild(c) { el.children.push(c); return c; },
     setAttribute(k, v) { el.attrs[k] = String(v); }, removeAttribute(k) { delete el.attrs[k]; },
@@ -45,12 +45,13 @@ function loadApp(opts) {
   const requests = [];
   const ctx = {
     console, URL, Math, Number, parseInt, parseFloat, JSON, Object, Array, String, Promise, RegExp, Error, Set, Map, Symbol,
-    setTimeout, clearTimeout, isNaN, TextDecoder, TextEncoder, AbortController, Blob, encodeURIComponent, decodeURIComponent,
+    setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {}, isNaN, TextDecoder, TextEncoder, AbortController, Blob, encodeURIComponent, decodeURIComponent,
     Date: FakeDate,
     document: {
       getElementById: (id) => (elements[id] = elements[id] || Object.assign(makeElement('div'), { id })),
       createElement: (t) => makeElement(t),
       createTextNode: (t) => ({ textContent: String(t) }),
+      addEventListener() {}, hidden: false,
       body: makeElement('body')
     },
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } },
@@ -62,7 +63,7 @@ function loadApp(opts) {
   vm.createContext(ctx);
   const dir = path.join(__dirname, '..', '..', 'pronosticos');
   const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
-  const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]);
+  const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]).filter((n) => n !== 'boot.js');
   for (const s of scripts) vm.runInContext(fs.readFileSync(path.join(dir, s), 'utf8'), ctx, { filename: s });
   return { ctx, elements, store, html, scripts, requests, get: (expr) => vm.runInContext(expr, ctx), fire };
 }

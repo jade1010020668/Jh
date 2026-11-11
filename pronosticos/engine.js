@@ -22,6 +22,7 @@
       wPrev: 1.0,                    // Calibrado: el torneo anterior pesa igual que el actual (con 0,5 era peor)
       w5: 0.5,                       // sobrepeso de los últimos 5 (efecto no distinguible del ruido)
       rho: -0.08,                    // corrección Dixon-Coles (más empates y marcadores bajos)
+      calibrated: true,              // el modelo solo (sin cuotas) está probado con partidos reales
       w1x2: 0.20,                    // [M] peso máximo del modelo frente al mercado
       wOver: 0,                      // Calibrado: en goles totales el modelo NO supera al promedio de la liga,
                                      // así que frente al mercado no pesa nada
@@ -46,7 +47,9 @@
     minEV: 0.03, maxEVPrice: 0.10, maxOddsBet: 6,
     fitResidualWarn: 0.02, fitResidualBet: 0.005,
     stakeCap: 0.01, kellyFraction: 0.25, stakeRound: 1000,
-    userOddsMaxAgeH: 6
+    userOddsMaxAgeH: 6,
+    // Una cuota mal copiada hacia arriba deja a esa casa con un margen anormalmente bajo o muy distinto del de la otra
+    minB1x2: 1.03, minBOU: 1.025, maxBGap: 0.03
   };
   // Casas que comparten proveedor de cuotas: no son opiniones independientes.
   const HOUSE_GROUPS = { betplay: 'kambi', rushbet: 'kambi' };
@@ -200,6 +203,9 @@
         if (d.overround < LIMITS.bOU[0] || d.overround > LIMITS.bOU[1]) out.notes.push(`Más/menos descartado: margen de ${((d.overround - 1) * 100).toFixed(1)}% no creíble`);
         else out.mOU = { probs: d.probs, overround: d.overround };
       }
+    } else if (isNum(o.fairOver) && o.fairOver > 0.02 && o.fairOver < 0.98) {
+      // Línea distinta de 2,5 ya convertida a "más de 2,5" (sin margen) por la capa de datos
+      out.mOU = { probs: [o.fairOver, 1 - o.fairOver], overround: null, line: o.overLine || null };
     }
     return out;
   }
@@ -219,7 +225,7 @@
   // Una casa hallada (H) que se aleja de las del usuario se descarta por cuota vieja.
   function marketConsensus(houses) {
     const evals = (houses || []).map(evalHouse);
-    const res = { houses: evals, x: null, xU: null, over: null, overU: null, n1x2: 0, nU1x2: 0, nOU: 0, nUOU: 0, userDisagree1x2: false, userDisagreeOU: false, notes: [] };
+    const res = { houses: evals, x: null, xU: null, over: null, overU: null, n1x2: 0, nU1x2: 0, nOU: 0, nUOU: 0, userDisagree1x2: false, userDisagreeOU: false, refDisagree1x2: false, refDisagreeOU: false, notes: [] };
 
     const pick = (field) => {
       const seen = {};
@@ -249,14 +255,15 @@
           return true;
         });
       }
-      return { all: list.length ? logPool(list.map(e => e[field].probs)) : null, xU, n: list.length, nU: U.length, disagree };
+      return { all: list.length ? logPool(list.map(e => e[field].probs)) : null, xU, n: list.length, nU: U.length, disagree, refDropped: evals.some(e => e[field + 'Dropped']) };
     };
     const a = build('m1x2', '1X2');
-    res.x = a.all; res.xU = a.xU; res.n1x2 = a.n; res.nU1x2 = a.nU; res.userDisagree1x2 = a.disagree;
+    res.x = a.all; res.xU = a.xU; res.n1x2 = a.n; res.nU1x2 = a.nU; res.userDisagree1x2 = a.disagree; res.refDisagree1x2 = a.refDropped;
     const b = build('mOU', 'Más/menos');
-    res.over = b.all ? b.all[0] : null; res.overU = b.xU ? b.xU[0] : null; res.nOU = b.n; res.nUOU = b.nU; res.userDisagreeOU = b.disagree;
+    res.over = b.all ? b.all[0] : null; res.overU = b.xU ? b.xU[0] : null; res.nOU = b.n; res.nUOU = b.nU; res.userDisagreeOU = b.disagree; res.refDisagreeOU = b.refDropped;
     if (a.disagree) res.notes.push('Sus dos casas difieren mucho en el 1X2: revise que las cuotas estén bien escritas.');
     if (b.disagree) res.notes.push('Sus dos casas difieren mucho en el más/menos: revise las cuotas.');
+    if (a.refDropped || b.refDropped) res.notes.push('Sus cuotas no coinciden con las de referencia del mercado para este partido: revise que sean de ESTE partido y que estén en el orden local / empate / visitante.');
     return res;
   }
 
@@ -400,7 +407,7 @@
   function forecast(input) {
     const P = PARAMS[input.group] || null;
     const base = (P || PARAMS.europa).base;
-    const gm = input.model ? goalModel(Object.assign({ group: input.group }, input.model)) : { ok: false, notes: ['Sin datos de tabla para este partido.'] };
+    const gm = input.model ? goalModel(Object.assign({ group: input.group }, input.model)) : { ok: false, notes: input.phase === 'copa' ? [] : ['Sin datos de tabla para este partido.'] };
     const mkt = marketConsensus(input.houses);
     const out = { params: P ? input.group : null, model: gm, market: mkt, notes: [].concat(input.dataNotes || []), base };
 
@@ -435,15 +442,20 @@
 
     // Calidad de los datos (no es "confianza en el resultado")
     const poor = [], partial = [];
-    if (!hasX) poor.push('No hay cuotas válidas: el número sale solo del modelo de goles.');
-    if (!hasM) poor.push('Sin modelo de goles' + (gm.notes[0] ? ` (${gm.notes[0]})` : '') + ': el número es solo el mercado.');
+    // Sin cuotas: en una liga con el modelo probado es un dato incompleto; en las demás, un dato pobre
+    if (!hasX) (P && P.calibrated ? partial : poor).push('No hay cuotas para contrastar: el número sale solo del modelo de goles, que no conoce bajas ni rotaciones.');
+    const cup = input.phase === 'copa';
+    const hasU = mkt.houses.some(h => h.src === 'U');
+    if (!hasM && !cup) poor.push('Sin modelo de goles' + (gm.notes[0] ? ` (${String(gm.notes[0]).replace(/\.$/, '')})` : '') + ': el número es solo el mercado.');
+    if (cup) poor.push(hasM ? 'Partido de copa: los datos de la liga pesan poco.' : 'Copa entre equipos de ligas distintas: no hay modelo de goles, el número es solo el mercado.');
     if (hasM && Math.min(input.model.home.pj, input.model.away.pj) < 8) poor.push('Algún equipo lleva menos de 8 partidos en el torneo.');
     if (D != null && D > LIMITS.dHigh) poor.push('El modelo y el mercado discrepan en más de 10 puntos: se muestra el mercado. Lo más probable es que al modelo le falte información.');
-    if (input.phase === 'final' || input.phase === 'copa') poor.push('Partido de final o de copa: los datos de la fase regular pesan poco.');
-    if (!P) poor.push('Liga sin parámetros propios.');
-    if (fit.residual > LIMITS.fitResidualWarn) poor.push('El 1X2 y el más/menos no cuadran entre sí: revise las cuotas. Ambos anotan y marcadores son aproximados.');
-    if (mkt.n1x2 < 2 || mkt.nU1x2 < 1) partial.push('Menos de dos casas independientes (y al menos una escrita por usted).');
-    if (D != null && D >= LIMITS.dLow) partial.push('El modelo y el mercado discrepan entre 5 y 10 puntos.');
+    if (input.phase === 'final') poor.push('Partido de final: los datos de la fase regular pesan poco.');
+    if (!P && !cup) poor.push('Liga sin parámetros propios.');
+    if (fit.residual > LIMITS.fitResidualWarn) poor.push((hasU ? 'El 1X2 y el más/menos no cuadran entre sí: revise las cuotas.' : 'El 1X2 y el más/menos de la casa de referencia no cuadran del todo entre sí.') + ' "Ambos anotan" y los marcadores son aproximados.');
+    if (hasX && (mkt.n1x2 < 2 || mkt.nU1x2 < 1)) partial.push('Menos de dos casas independientes (y al menos una escrita por usted).');
+    if (D != null && D >= LIMITS.dLow && D <= LIMITS.dHigh) partial.push('El modelo y el mercado discrepan entre 5 y 10 puntos.');
+    if (mkt.refDisagree1x2 || mkt.refDisagreeOU) partial.push('Sus cuotas no coinciden con las de referencia del mercado: revise que sean de este partido.');
     if (hasM && Math.min(input.model.home.pj, input.model.away.pj) < 12) partial.push('Algún equipo lleva menos de 12 partidos.');
     if (input.phase === 'cuadrangular') partial.push('Fase final del torneo: los equipos no juegan igual que en la fase regular.');
     if (input.dataComplete === false) partial.push('Faltó algún bloque de datos (desglose local/visitante, torneo anterior o últimos partidos).');
@@ -486,15 +498,22 @@
         const nU = m.group === '1x2' ? mkt.nU1x2 : mkt.nUOU;
         const D = m.group === '1x2' ? fc.D : fc.Dou;
         const disagree = m.group === '1x2' ? mkt.userDisagree1x2 : mkt.userDisagreeOU;
+        const refDisagree = m.group === '1x2' ? mkt.refDisagree1x2 : mkt.refDisagreeOU;
+        // TODAS las casas con las que se compara deben estar frescas, no solo la de la apuesta
+        const allFresh = mkt.houses.filter(h => h.src === 'U' && h[field]).every(fresh);
         const evPrice = m.xU != null ? m.xU * c - 1 : null;
         const evFinal = m.p * c - 1;
         const ev = evPrice != null ? Math.min(evPrice, evFinal) : null;
         const why = general.slice();
         if (nU < 2) why.push('Se necesitan cuotas de dos casas independientes para comparar.');
         if (disagree) why.push('Sus dos casas difieren demasiado: revise las cuotas.');
-        if (!fresh(e)) why.push('Las cuotas tienen más de 6 horas: actualícelas.');
+        if (!allFresh) why.push('Alguna de sus cuotas tiene más de 6 horas: actualícelas todas.');
+        if (refDisagree) why.push('Sus cuotas no coinciden con las de referencia del mercado: revise que sean de este partido y estén en el orden local / empate / visitante.');
         if (ev == null || ev < LIMITS.minEV) why.push('No paga lo suficiente por encima de su valor (se exige +3%).');
         if (evPrice != null && evPrice > LIMITS.maxEVPrice) why.push('Diferencia demasiado grande entre casas: casi seguro es un error al escribir la cuota.');
+        const minB = m.group === '1x2' ? LIMITS.minB1x2 : LIMITS.minBOU;
+        const us = mkt.houses.filter(h => h.src === 'U' && h[field]);
+        if (us.some(h => h[field].overround < minB) || us.some(h => Math.abs(h[field].overround - e[field].overround) > LIMITS.maxBGap)) why.push('El margen de una de sus casas no es normal: casi seguro hay una cuota mal copiada. Revise las dos casas.');
         if (D != null && D > LIMITS.dHigh) why.push('El modelo discrepa demasiado del mercado en este partido.');
         if (c > LIMITS.maxOddsBet) why.push('Cuota superior a 6: demasiada varianza.');
         const kelly = ev != null && ev > 0 ? ev / (c - 1) : 0;
